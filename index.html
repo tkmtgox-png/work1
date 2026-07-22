@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>コースマップ</title>
+<meta name="theme-color" content="#2563eb" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="コースマップ" />
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+  <div id="map"></div>
+
+  <button id="panel-toggle" aria-label="メニューを開く">☰</button>
+
+  <aside id="panel">
+    <div class="panel-header">
+      <h1>コースマップ</h1>
+      <button id="panel-close" aria-label="メニューを閉じる">×</button>
+    </div>
+
+    <section id="route-section">
+      <div class="section-title">ルート</div>
+      <select id="route-select"></select>
+      <div class="btn-row">
+        <button id="new-route-btn">＋ 新規ルート</button>
+        <button id="rename-route-btn">名前変更</button>
+        <button id="delete-route-btn" class="danger">削除</button>
+      </div>
+      <label class="field-row">
+        移動手段
+        <select id="transport-mode">
+          <option value="walk">徒歩</option>
+          <option value="car">車</option>
+        </select>
+      </label>
+    </section>
+
+    <section id="points-section">
+      <div class="section-title">ポイント一覧</div>
+      <p class="hint">地図をクリックするとポイントを追加できます。</p>
+      <ul id="point-list"></ul>
+    </section>
+
+    <section id="location-section">
+      <label class="switch-row">
+        <input type="checkbox" id="track-location-toggle" />
+        現在地をリアルタイム表示
+      </label>
+      <p id="location-status" class="hint"></p>
+    </section>
+  </aside>
+
+  <div id="point-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="point-modal-title">ポイントを追加</h2>
+      <form id="point-form">
+        <label>
+          種類
+          <select id="point-type">
+            <option value="start">起点(自宅・駅など)</option>
+            <option value="waypoint">経由地</option>
+            <option value="sightseeing">観光スポット</option>
+            <option value="meal">食事</option>
+          </select>
+        </label>
+        <label>
+          名前
+          <input type="text" id="point-name" required maxlength="50" />
+        </label>
+        <label>
+          メモ(概要)
+          <textarea id="point-memo" rows="3" maxlength="500"></textarea>
+        </label>
+        <label>
+          到着時刻
+          <input type="time" id="point-arrival" />
+        </label>
+        <div class="btn-row">
+          <button type="submit">保存</button>
+          <button type="button" id="point-delete-btn" class="danger hidden">削除</button>
+          <button type="button" id="point-cancel-btn">キャンセル</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
