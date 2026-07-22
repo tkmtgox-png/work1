@@ -1,4 +1,4 @@
-const CACHE_NAME = "course-map-shell-v1";
+const CACHE_NAME = "course-map-shell-v2";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -9,6 +9,7 @@ const SHELL_FILES = [
   "./js/points.js",
   "./js/routing.js",
   "./js/storage.js",
+  "./js/geocode.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];

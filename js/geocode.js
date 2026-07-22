@@ -1,0 +1,33 @@
+const REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
+
+export async function reverseGeocode(lat, lng) {
+  const url = `${REVERSE_URL}?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&accept-language=ja`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`reverse geocode failed: ${res.status}`);
+  const data = await res.json();
+  return extractName(data);
+}
+
+function extractName(data) {
+  if (data.name) return firstAltName(data.name);
+  const addr = data.address || {};
+  const candidates = [
+    addr.amenity,
+    addr.shop,
+    addr.tourism,
+    addr.leisure,
+    addr.building,
+    addr.road,
+    addr.neighbourhood,
+    addr.suburb,
+  ];
+  const found = candidates.find((v) => v);
+  if (found) return firstAltName(found);
+  if (data.display_name) return firstAltName(data.display_name.split(",")[0]);
+  return "";
+}
+
+// OSMのname タグは "名前A;名前B" のように複数名がセミコロン区切りで入ることがあるため先頭のみ使う
+function firstAltName(name) {
+  return name.split(";")[0].trim();
+}

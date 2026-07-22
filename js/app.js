@@ -2,6 +2,7 @@ import { getAllRoutes, saveRoute, deleteRoute, createEmptyRoute } from "./storag
 import { newPoint, makeDivIcon, renderPointList } from "./points.js";
 import { initMap, createLocationTracker } from "./map.js";
 import { drawRoute, clearRoute } from "./routing.js";
+import { reverseGeocode } from "./geocode.js";
 
 const els = {
   panel: document.getElementById("panel"),
@@ -33,6 +34,7 @@ let markers = new Map();
 let pendingLatLng = null;
 let editingPointId = null;
 let locationTracker;
+let geocodeToken = 0;
 
 async function init() {
   map = initMap("map");
@@ -99,6 +101,12 @@ function bindUI() {
     currentRoute.transportMode = els.transportMode.value;
     await saveRoute(currentRoute);
     renderRoute();
+  });
+
+  els.typeSelect.addEventListener("change", () => {
+    if (els.typeSelect.value === "start") {
+      els.nameInput.value = "起点";
+    }
   });
 
   els.form.addEventListener("submit", handlePointFormSubmit);
@@ -170,6 +178,24 @@ function openPointModal({ mode, point, latlng }) {
 
   els.modal.classList.remove("hidden");
   els.nameInput.focus();
+
+  if (mode === "add") {
+    fillNameFromMap(latlng);
+  }
+}
+
+async function fillNameFromMap(latlng) {
+  const token = ++geocodeToken;
+  let name = "";
+  try {
+    name = await reverseGeocode(latlng.lat, latlng.lng);
+  } catch {
+    return;
+  }
+  if (!name || token !== geocodeToken) return;
+  if (els.modal.classList.contains("hidden")) return;
+  if (els.nameInput.value.trim() !== "") return;
+  els.nameInput.value = name;
 }
 
 function closePointModal() {
