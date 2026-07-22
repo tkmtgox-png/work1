@@ -20,6 +20,19 @@ export function initMap(elementId) {
   return map;
 }
 
+function describeGeolocationError(err) {
+  switch (err.code) {
+    case err.PERMISSION_DENIED:
+      return "位置情報が許可されていません。端末の設定アプリ→プライバシーとセキュリティ→位置情報サービスでSafari(またはこのアプリ)の許可を確認してください。";
+    case err.POSITION_UNAVAILABLE:
+      return "現在地を取得できません。端末の位置情報サービスがオンになっているか確認してください。";
+    case err.TIMEOUT:
+      return "現在地の取得がタイムアウトしました。電波状況の良い場所で再度お試しください。";
+    default:
+      return `位置情報を取得できませんでした: ${err.message}`;
+  }
+}
+
 export function createLocationTracker(map) {
   let marker = null;
   let watchId = null;
@@ -47,7 +60,7 @@ export function createLocationTracker(map) {
         }
         onStatus("");
       },
-      (err) => onStatus(`位置情報を取得できませんでした: ${err.message}`),
+      (err) => onStatus(describeGeolocationError(err)),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     );
   }
