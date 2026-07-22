@@ -1,11 +1,12 @@
 export const POINT_TYPES = {
-  start: { label: "起点", color: "#16a34a", icon: "🏠" },
-  waypoint: { label: "経由地", color: "#6b7280", icon: "📍" },
-  sightseeing: { label: "観光スポット", color: "#f59e0b", icon: "📷" },
-  meal: { label: "食事", color: "#ef4444", icon: "🍴" },
+  start: { label: "起点", color: "#16a34a", icon: "🏠", defaultStayMinutes: 0 },
+  waypoint: { label: "経由地", color: "#6b7280", icon: "📍", defaultStayMinutes: 0 },
+  sightseeing: { label: "観光スポット", color: "#f59e0b", icon: "📷", defaultStayMinutes: 30 },
+  meal: { label: "食事", color: "#ef4444", icon: "🍴", defaultStayMinutes: 60 },
 };
 
-export function newPoint({ type, name, memo, lat, lng, arrivalTime, order }) {
+export function newPoint({ type, name, memo, lat, lng, arrivalTime, order, stayMinutes, included }) {
+  const meta = POINT_TYPES[type] || POINT_TYPES.waypoint;
   return {
     id: crypto.randomUUID(),
     type,
@@ -15,6 +16,8 @@ export function newPoint({ type, name, memo, lat, lng, arrivalTime, order }) {
     lng,
     order,
     arrivalTime: arrivalTime || "",
+    stayMinutes: stayMinutes ?? meta.defaultStayMinutes,
+    included: included ?? true,
   };
 }
 
@@ -41,11 +44,14 @@ export function renderPointList(container, route, { onSelect }) {
   const sorted = [...route.points].sort((a, b) => a.order - b.order);
   for (const point of sorted) {
     const meta = POINT_TYPES[point.type] || POINT_TYPES.waypoint;
+    const included = point.included !== false;
     const li = document.createElement("li");
+    li.className = included ? "" : "excluded";
+    const stay = point.stayMinutes ? `${point.stayMinutes}分` : "";
     li.innerHTML = `
       <span class="badge" style="background:${meta.color}">${meta.icon}</span>
       <span class="name">${escapeHtml(point.name || meta.label)}</span>
-      <span class="arrival">${point.arrivalTime || ""}</span>
+      <span class="arrival">${[point.arrivalTime, stay].filter(Boolean).join(" / ")}</span>
     `;
     li.addEventListener("click", () => onSelect(point.id));
     container.appendChild(li);

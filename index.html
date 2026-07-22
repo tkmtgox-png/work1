@@ -42,6 +42,14 @@
           <option value="car">車</option>
         </select>
       </label>
+      <label class="field-row">
+        希望時間(分)
+        <input type="number" id="desired-minutes" min="0" step="5" placeholder="例: 180" />
+      </label>
+      <div class="btn-row">
+        <button id="recommend-btn">観光スポットをおすすめルートに反映</button>
+      </div>
+      <p id="recommend-status" class="hint"></p>
     </section>
 
     <section id="points-section">
@@ -83,6 +91,14 @@
         <label>
           到着時刻
           <input type="time" id="point-arrival" />
+        </label>
+        <label>
+          滞在時間(分)
+          <input type="number" id="point-stay" min="0" step="5" />
+        </label>
+        <label class="switch-row">
+          <input type="checkbox" id="point-included" checked />
+          このルートに含める
         </label>
         <div class="btn-row">
           <button type="submit">保存</button>

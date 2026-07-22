@@ -172,6 +172,14 @@ button {
   background: #f9fafb;
 }
 
+#point-list li.excluded {
+  opacity: 0.45;
+}
+
+.marker-excluded {
+  opacity: 0.4;
+}
+
 #point-list .badge {
   flex-shrink: 0;
   width: 22px;
