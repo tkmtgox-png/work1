@@ -27,6 +27,8 @@ const els = {
   nameInput: document.getElementById("point-name"),
   memoInput: document.getElementById("point-memo"),
   arrivalInput: document.getElementById("point-arrival"),
+  arrivalDisplay: document.getElementById("point-arrival-display"),
+  arrivalClockBtn: document.getElementById("point-arrival-clock"),
   stayInput: document.getElementById("point-stay"),
   includedInput: document.getElementById("point-included"),
   deleteBtn: document.getElementById("point-delete-btn"),
@@ -123,6 +125,20 @@ function bindUI() {
     stayTouched = true;
   });
 
+  els.arrivalDisplay.addEventListener("click", () => {
+    els.arrivalInput.value = nowHHMM();
+    updateArrivalDisplay();
+  });
+  els.arrivalClockBtn.addEventListener("click", () => {
+    if (typeof els.arrivalInput.showPicker === "function") {
+      els.arrivalInput.showPicker();
+    } else {
+      els.arrivalInput.focus();
+    }
+  });
+  els.arrivalInput.addEventListener("input", updateArrivalDisplay);
+  els.arrivalInput.addEventListener("change", updateArrivalDisplay);
+
   els.form.addEventListener("submit", handlePointFormSubmit);
   els.cancelBtn.addEventListener("click", closePointModal);
   els.deleteBtn.addEventListener("click", handlePointDelete);
@@ -202,6 +218,7 @@ function openPointModal({ mode, point, latlng }) {
   els.nameInput.value = mode === "edit" ? point.name : "";
   els.memoInput.value = mode === "edit" ? point.memo : "";
   els.arrivalInput.value = mode === "edit" ? point.arrivalTime : "";
+  updateArrivalDisplay();
   els.stayInput.value = mode === "edit" ? point.stayMinutes : POINT_TYPES[els.typeSelect.value].defaultStayMinutes;
   els.includedInput.checked = mode === "edit" ? point.included !== false : true;
   els.deleteBtn.classList.toggle("hidden", mode !== "edit");
@@ -212,6 +229,15 @@ function openPointModal({ mode, point, latlng }) {
   if (mode === "add") {
     fillNameFromMap(latlng);
   }
+}
+
+function nowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function updateArrivalDisplay() {
+  els.arrivalDisplay.textContent = els.arrivalInput.value || "未設定";
 }
 
 async function fillNameFromMap(latlng) {

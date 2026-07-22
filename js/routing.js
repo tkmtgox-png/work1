@@ -3,9 +3,14 @@ const OSRM_PROFILES = {
   car: "driving",
 };
 
+const OUTBOUND_STYLE = { color: "#2563eb", weight: 5 };
+const RETURN_STYLE = { color: "#f97316", weight: 5, dashArray: "8 8" };
+
 let routingControl = null;
 let currentProfile = null;
 let fallbackLine = null;
+let outboundLine = null;
+let returnLine = null;
 
 export function buildOrderedPoints(route) {
   const start = route.points.find((p) => p.type === "start");
@@ -23,9 +28,38 @@ function clearFallback(map) {
   }
 }
 
+function clearSegments(map) {
+  if (outboundLine) {
+    map.removeLayer(outboundLine);
+    outboundLine = null;
+  }
+  if (returnLine) {
+    map.removeLayer(returnLine);
+    returnLine = null;
+  }
+}
+
 function drawFallbackLine(map, latlngs) {
   clearFallback(map);
   fallbackLine = L.polyline(latlngs, { color: "#2563eb", weight: 4, dashArray: "6 8" }).addTo(map);
+}
+
+// 往路(起点→最後の実ポイント)と復路(最後の実ポイント→起点)を別の色・線種で描画する。
+// route.waypointIndicesは、渡したwaypoints配列の各点がcoordinates配列の何番目に対応するかを示す。
+function drawSegments(map, route) {
+  const coords = route.coordinates;
+  const wpIdx = route.waypointIndices;
+  if (!wpIdx || wpIdx.length < 2) {
+    outboundLine = L.polyline(coords, OUTBOUND_STYLE).addTo(map);
+    return;
+  }
+  const lastStopIdx = wpIdx[wpIdx.length - 2];
+  const outboundCoords = coords.slice(0, lastStopIdx + 1);
+  const returnCoords = coords.slice(lastStopIdx);
+  outboundLine = L.polyline(outboundCoords, OUTBOUND_STYLE).addTo(map);
+  if (returnCoords.length > 1) {
+    returnLine = L.polyline(returnCoords, RETURN_STYLE).addTo(map);
+  }
 }
 
 // プロフィール(徒歩/車)が変わらない限りコントロールを使い回す。
@@ -49,11 +83,17 @@ function getControl(map, profile) {
     draggableWaypoints: false,
     fitSelectedRoutes: false,
     show: false,
-    lineOptions: { styles: [{ color: "#2563eb", weight: 5 }] },
+    // 既定の線描画は使わず、往路・復路を自前のpolylineで描画するため透明にする
+    lineOptions: { styles: [{ opacity: 0, weight: 5 }] },
   }).addTo(map);
 
-  routingControl.on("routesfound", () => clearFallback(map));
+  routingControl.on("routesfound", (e) => {
+    clearFallback(map);
+    clearSegments(map);
+    drawSegments(map, e.routes[0]);
+  });
   routingControl.on("routingerror", () => {
+    clearSegments(map);
     if (routingControl && routingControl._lastLatLngs) {
       drawFallbackLine(map, routingControl._lastLatLngs);
     }
@@ -83,4 +123,5 @@ export function clearRoute(map) {
     currentProfile = null;
   }
   clearFallback(map);
+  clearSegments(map);
 }

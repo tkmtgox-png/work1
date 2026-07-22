@@ -50,6 +50,10 @@
         <button id="recommend-btn">観光スポットをおすすめルートに反映</button>
       </div>
       <p id="recommend-status" class="hint"></p>
+      <p class="route-legend">
+        <span class="legend-line legend-outbound"></span>行き
+        <span class="legend-line legend-return"></span>帰り
+      </p>
     </section>
 
     <section id="points-section">
@@ -90,7 +94,11 @@
         </label>
         <label>
           到着時刻
-          <input type="time" id="point-arrival" />
+          <div class="time-field">
+            <button type="button" id="point-arrival-display" class="time-display">未設定</button>
+            <button type="button" id="point-arrival-clock" class="clock-icon-btn" aria-label="時刻を編集">🕐</button>
+          </div>
+          <input type="time" id="point-arrival" class="visually-hidden" tabindex="-1" />
         </label>
         <label>
           滞在時間(分)
