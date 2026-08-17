@@ -5,7 +5,7 @@ export const POINT_TYPES = {
   meal: { label: "食事", color: "#ef4444", icon: "🍴", defaultStayMinutes: 60 },
 };
 
-export function newPoint({ type, name, memo, lat, lng, arrivalTime, order, stayMinutes, included }) {
+export function newPoint({ type, name, memo, lat, lng, arrivalTime, order, stayMinutes, included, popularity }) {
   const meta = POINT_TYPES[type] || POINT_TYPES.waypoint;
   return {
     id: crypto.randomUUID(),
@@ -18,7 +18,13 @@ export function newPoint({ type, name, memo, lat, lng, arrivalTime, order, stayM
     arrivalTime: arrivalTime || "",
     stayMinutes: stayMinutes ?? meta.defaultStayMinutes,
     included: included ?? true,
+    popularity: popularity ?? 3,
   };
+}
+
+export function starString(popularity) {
+  const n = Math.min(5, Math.max(1, Number(popularity) || 3));
+  return "★".repeat(n) + "☆".repeat(5 - n);
 }
 
 export function makeDivIcon(type) {
@@ -48,9 +54,10 @@ export function renderPointList(container, route, { onSelect }) {
     const li = document.createElement("li");
     li.className = included ? "" : "excluded";
     const stay = point.stayMinutes ? `${point.stayMinutes}分` : "";
+    const popularity = point.type === "sightseeing" ? starString(point.popularity) : "";
     li.innerHTML = `
       <span class="badge" style="background:${meta.color}">${meta.icon}</span>
-      <span class="name">${escapeHtml(point.name || meta.label)}</span>
+      <span class="name">${escapeHtml(point.name || meta.label)}${popularity ? ` <span class="popularity">${popularity}</span>` : ""}</span>
       <span class="arrival">${[point.arrivalTime, stay].filter(Boolean).join(" / ")}</span>
     `;
     li.addEventListener("click", () => onSelect(point.id));

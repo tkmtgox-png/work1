@@ -47,9 +47,8 @@
         <input type="number" id="desired-minutes" min="0" step="5" placeholder="例: 180" />
       </label>
       <div class="btn-row">
-        <button id="recommend-btn">観光スポットをおすすめルートに反映</button>
+        <button id="route-search-btn">ルート検索</button>
       </div>
-      <p id="recommend-status" class="hint"></p>
       <p class="route-legend">
         <span class="legend-line legend-outbound"></span>行き
         <span class="legend-line legend-return"></span>帰り
@@ -104,6 +103,16 @@
           滞在時間(分)
           <input type="number" id="point-stay" min="0" step="5" />
         </label>
+        <label>
+          人気度
+          <select id="point-popularity">
+            <option value="1">★☆☆☆☆</option>
+            <option value="2">★★☆☆☆</option>
+            <option value="3" selected>★★★☆☆</option>
+            <option value="4">★★★★☆</option>
+            <option value="5">★★★★★</option>
+          </select>
+        </label>
         <label class="switch-row">
           <input type="checkbox" id="point-included" checked />
           このルートに含める
@@ -114,6 +123,18 @@
           <button type="button" id="point-cancel-btn">キャンセル</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="route-search-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>ルート検索</h2>
+      <p id="route-search-progress" class="route-search-progress"></p>
+      <ul id="route-search-candidates" class="candidate-list"></ul>
+      <p id="route-search-empty" class="hint hidden">希望時間内で追加できる観光スポットがなくなりました。</p>
+      <div class="btn-row">
+        <button type="button" id="route-search-finish">ここで確定</button>
+      </div>
     </div>
   </div>
 </div>

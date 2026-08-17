@@ -1,9 +1,9 @@
 import { getAllRoutes, saveRoute, deleteRoute, createEmptyRoute } from "./storage.js";
-import { POINT_TYPES, newPoint, makeDivIcon, renderPointList } from "./points.js";
+import { POINT_TYPES, newPoint, makeDivIcon, renderPointList, starString, escapeHtml } from "./points.js";
 import { initMap, createLocationTracker } from "./map.js";
 import { drawRoute, clearRoute } from "./routing.js";
 import { reverseGeocode } from "./geocode.js";
-import { recommendRoute } from "./recommend.js";
+import { getFeasibleCandidates } from "./route-search.js";
 
 const els = {
   panel: document.getElementById("panel"),
@@ -15,8 +15,12 @@ const els = {
   deleteRouteBtn: document.getElementById("delete-route-btn"),
   transportMode: document.getElementById("transport-mode"),
   desiredMinutes: document.getElementById("desired-minutes"),
-  recommendBtn: document.getElementById("recommend-btn"),
-  recommendStatus: document.getElementById("recommend-status"),
+  routeSearchBtn: document.getElementById("route-search-btn"),
+  routeSearchModal: document.getElementById("route-search-modal"),
+  routeSearchProgress: document.getElementById("route-search-progress"),
+  routeSearchCandidates: document.getElementById("route-search-candidates"),
+  routeSearchEmpty: document.getElementById("route-search-empty"),
+  routeSearchFinishBtn: document.getElementById("route-search-finish"),
   pointList: document.getElementById("point-list"),
   trackToggle: document.getElementById("track-location-toggle"),
   locationStatus: document.getElementById("location-status"),
@@ -31,6 +35,7 @@ const els = {
   arrivalClockBtn: document.getElementById("point-arrival-clock"),
   stayInput: document.getElementById("point-stay"),
   includedInput: document.getElementById("point-included"),
+  popularityInput: document.getElementById("point-popularity"),
   deleteBtn: document.getElementById("point-delete-btn"),
   cancelBtn: document.getElementById("point-cancel-btn"),
 };
@@ -44,6 +49,7 @@ let editingPointId = null;
 let locationTracker;
 let geocodeToken = 0;
 let stayTouched = false;
+let routeSearch = null; // { currentPos: {lat,lng}, usedMinutes: number, nextOrder: number }
 
 async function init() {
   map = initMap("map");
@@ -149,7 +155,8 @@ function bindUI() {
     await saveRoute(currentRoute);
   });
 
-  els.recommendBtn.addEventListener("click", handleRecommend);
+  els.routeSearchBtn.addEventListener("click", openRouteSearch);
+  els.routeSearchFinishBtn.addEventListener("click", closeRouteSearch);
 
   els.trackToggle.addEventListener("change", () => {
     if (els.trackToggle.checked) {
@@ -172,7 +179,6 @@ function refreshRouteSelect() {
   }
   els.transportMode.value = currentRoute.transportMode;
   els.desiredMinutes.value = currentRoute.desiredMinutes || "";
-  els.recommendStatus.textContent = "";
 }
 
 function renderAll() {
@@ -221,6 +227,7 @@ function openPointModal({ mode, point, latlng }) {
   updateArrivalDisplay();
   els.stayInput.value = mode === "edit" ? point.stayMinutes : POINT_TYPES[els.typeSelect.value].defaultStayMinutes;
   els.includedInput.checked = mode === "edit" ? point.included !== false : true;
+  els.popularityInput.value = mode === "edit" ? point.popularity : 3;
   els.deleteBtn.classList.toggle("hidden", mode !== "edit");
 
   els.modal.classList.remove("hidden");
@@ -269,6 +276,7 @@ async function handlePointFormSubmit(e) {
   const arrivalTime = els.arrivalInput.value;
   const stayMinutes = Number(els.stayInput.value) || 0;
   const included = els.includedInput.checked;
+  const popularity = Number(els.popularityInput.value) || 3;
 
   if (type === "start" && currentRoute.points.some((p) => p.type === "start" && p.id !== editingPointId)) {
     alert("起点は1ルートにつき1つまでです。既存の起点の種類を変更してから追加してください。");
@@ -277,7 +285,7 @@ async function handlePointFormSubmit(e) {
 
   if (editingPointId) {
     const point = currentRoute.points.find((p) => p.id === editingPointId);
-    Object.assign(point, { type, name, memo, arrivalTime, stayMinutes, included });
+    Object.assign(point, { type, name, memo, arrivalTime, stayMinutes, included, popularity });
   } else {
     const order = currentRoute.points.length;
     const point = newPoint({
@@ -290,6 +298,7 @@ async function handlePointFormSubmit(e) {
       order,
       stayMinutes,
       included,
+      popularity,
     });
     currentRoute.points.push(point);
   }
@@ -299,41 +308,79 @@ async function handlePointFormSubmit(e) {
   renderAll();
 }
 
-async function handleRecommend() {
+async function openRouteSearch() {
   const minutes = Number(els.desiredMinutes.value);
   if (!minutes || minutes <= 0) {
     alert("希望時間(分)を入力してください");
     return;
   }
-  if (!currentRoute.points.some((p) => p.type === "start")) {
+  const start = currentRoute.points.find((p) => p.type === "start");
+  if (!start) {
     alert("先に起点を登録してください");
     return;
   }
 
   currentRoute.desiredMinutes = minutes;
-  const result = recommendRoute(currentRoute);
-  if (!result) {
-    els.recommendStatus.textContent = "おすすめルートを作成できませんでした";
-    return;
-  }
-
-  let order = 0;
-  for (const p of result.tour) {
-    if (p.type === "start") continue;
-    p.order = order++;
-  }
   for (const p of currentRoute.points) {
-    if (p.type === "sightseeing") {
-      p.included = result.includedSightseeingIds.has(p.id);
-    }
+    if (p.type === "sightseeing") p.included = false;
   }
-
   await saveRoute(currentRoute);
   renderAll();
 
-  const hours = Math.floor(result.totalMinutes / 60);
-  const mins = Math.round(result.totalMinutes % 60);
-  els.recommendStatus.textContent = `観光スポット${result.includedSightseeingIds.size}件を選択、合計約${hours}時間${mins}分`;
+  const mandatoryOrders = currentRoute.points
+    .filter((p) => p.type === "waypoint" || p.type === "meal")
+    .map((p) => p.order);
+  routeSearch = {
+    currentPos: { lat: start.lat, lng: start.lng },
+    usedMinutes: 0,
+    nextOrder: (mandatoryOrders.length ? Math.max(...mandatoryOrders) : -1) + 1,
+  };
+
+  els.routeSearchModal.classList.remove("hidden");
+  renderCandidateList();
+}
+
+function renderCandidateList() {
+  if (!routeSearch) return;
+  const remaining = Math.max(0, currentRoute.desiredMinutes - routeSearch.usedMinutes);
+  els.routeSearchProgress.textContent = `使用時間 約${Math.round(routeSearch.usedMinutes)}分 / 希望${currentRoute.desiredMinutes}分(残り約${Math.round(remaining)}分、起点への戻り時間を含みます)`;
+
+  const candidates = getFeasibleCandidates(currentRoute, routeSearch.currentPos, routeSearch.usedMinutes);
+  els.routeSearchCandidates.innerHTML = "";
+  els.routeSearchEmpty.classList.toggle("hidden", candidates.length > 0);
+
+  for (const { point, travelFromCurrent } of candidates) {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="candidate-info">
+        <div class="candidate-name">${escapeHtml(point.name)}</div>
+        <div class="candidate-meta">${starString(point.popularity)} ・ 移動約${Math.round(travelFromCurrent)}分</div>
+      </div>
+      <button type="button" class="select-btn">選択</button>
+    `;
+    li.querySelector(".select-btn").addEventListener("click", () => selectCandidate(point.id, travelFromCurrent));
+    els.routeSearchCandidates.appendChild(li);
+  }
+}
+
+async function selectCandidate(pointId, travelFromCurrent) {
+  const point = currentRoute.points.find((p) => p.id === pointId);
+  if (!point || !routeSearch) return;
+
+  point.included = true;
+  point.order = routeSearch.nextOrder++;
+  await saveRoute(currentRoute);
+
+  routeSearch.currentPos = { lat: point.lat, lng: point.lng };
+  routeSearch.usedMinutes += travelFromCurrent;
+
+  renderAll();
+  renderCandidateList();
+}
+
+function closeRouteSearch() {
+  els.routeSearchModal.classList.add("hidden");
+  routeSearch = null;
 }
 
 async function handlePointDelete() {
