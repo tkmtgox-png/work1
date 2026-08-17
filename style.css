@@ -368,6 +368,14 @@ button {
   margin-bottom: 8px;
 }
 
+.candidate-list li.candidate-loading {
+  display: block;
+  color: #6b7280;
+  font-size: 14px;
+  text-align: center;
+  border-style: dashed;
+}
+
 .candidate-list .candidate-info {
   flex: 1;
   min-width: 0;

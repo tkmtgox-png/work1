@@ -10,18 +10,22 @@
 
 ## データモデル
 `routes` ストア: `{ id, name, transportMode: 'walk'|'car', desiredMinutes: number|null, createdAt, updatedAt, points: [...] }`
-`points`: `{ id, type: 'start'|'waypoint'|'sightseeing'|'meal', name, memo, lat, lng, order, arrivalTime, stayMinutes, included, popularity }`
+`points`: `{ id, type: 'start'|'waypoint'|'sightseeing'|'meal', name, memo, lat, lng, order, arrivalTime, stayMinutes, included, popularity, genre }`
 起点(`type: 'start'`)は1ルートにつき1件のみ。経路描画時は `[起点, ...他ポイント(order順、includedがfalseの観光スポットは除外), 起点]` で周回ルートを構成する(`js/routing.js` の `buildOrderedPoints`)。
 
-## ルート検索機能(`js/route-search.js` + `js/app.js`)
+## ルート検索機能(`js/route-search.js` + `js/nearby-search.js` + `js/app.js`)
 「ルート検索」ボタンを押すと**対話式**に観光スポットを1つずつ選んでいく方式(旧・自動一括選択の`recommend.js`は廃止)。
 - 押すと、そのルートの観光スポットは全て`included: false`にリセットされ、起点を「現在位置」として検索セッション(`app.js`内の`routeSearch`変数: 現在位置・使用時間・次のorder値)が始まる
-- 候補リストは、`getFeasibleCandidates(route, currentPos, usedMinutes)`が「現在位置からの移動時間 + 使用済み時間 + そのスポットから起点への戻り時間」が`route.desiredMinutes`以内に収まる観光スポットだけを、人気度(`popularity`、★1〜5)降順→移動時間昇順で返す
-- 候補を1つ選ぶと、そのポイントが`included: true`になり周回順(`order`)が確定、内部の「現在位置」がそのポイントに移り、候補リストが再計算される(**滞在時間はこの時間予算の計算には使わない**、移動時間のみ)
+- 候補リストは2種類をマージして1つのリストにする(`app.js: renderCandidateList`、非同期):
+  1. **登録済み候補**: `getFeasibleCandidates(route, currentPos, usedMinutes)`が返す、`route`に既に登録済みの未選択観光スポットのうち希望時間内(戻り時間込み)に収まるもの
+  2. **周辺自動検索候補**: `nearby-search.js: searchNearby(currentPos, radiusKm)`がOverpass API(OpenStreetMap)から取得する、現在位置周辺の観光スポット(神社・博物館・動物園等、`genreFromTags`でジャンル判定)。検索半径は`route-search.js: estimateSearchRadiusKm`で残り時間から概算。登録済みポイントと近すぎる(30m以内)ものは重複として除外
+  - 2つを合わせて**現在位置からの移動時間が近い順**にソートして表示。登録済み候補は人気度(★1〜5)、周辺検索候補はジャンルを補足表示する
+- 候補を1つ選ぶと、登録済みなら`included: true`・`order`確定、周辺検索由来なら`newPoint()`で新規の観光スポット(`popularity: 3`の仮値、`genre`をセット)としてルートに追加してから同様に確定。内部の「現在位置」がそのポイントに移り、候補リストが再計算される(**滞在時間はこの時間予算の計算には使わない**、移動時間のみ)
 - 経由地・食事(`waypoint`/`meal`)はこの検索の対象外(時間予算にもカウントされない)。従来通りルートには含まれ続ける
 - 移動時間は直線距離(ハーバサイン公式)×迂回係数1.3を徒歩4km/h・車20km/hの一定速度で見積もる簡易計算(`travelMinutes`)。実際の経路描画(Leaflet Routing Machine)とは独立
 - 候補が無くなると自動的にリストが空になり終了メッセージを表示。「ここで確定」ボタンでいつでも終了できる(それまでの選択は選んだ時点で都度保存済み)
-- 既存データ(`stayMinutes`/`included`/`popularity`が無い過去のポイント)は、`included !== false`(未定義なら含む)・`popularity`未設定時は3として扱う後方互換を維持している(`js/points.js` の `newPoint`)
+- Overpass APIが失敗・タイムアウトした場合は空配列を返し、登録済み候補のみで続行する(`nearby-search.js`内でcatch)
+- 既存データ(`stayMinutes`/`included`/`popularity`/`genre`が無い過去のポイント)は、`included !== false`(未定義なら含む)・`popularity`未設定時は3・`genre`未設定時は空文字として扱う後方互換を維持している(`js/points.js` の `newPoint`)
 
 ## 将来の拡張に向けて
 - GPSによる実走行/実歩行の軌跡記録: `points` と同階層に `recordedTrack: [{lat, lng, timestamp}]` を追加する形で拡張できるよう、データモデルはあえてシンプルに保っている(未実装)。

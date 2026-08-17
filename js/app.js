@@ -3,7 +3,8 @@ import { POINT_TYPES, newPoint, makeDivIcon, renderPointList, starString, escape
 import { initMap, createLocationTracker } from "./map.js";
 import { drawRoute, clearRoute } from "./routing.js";
 import { reverseGeocode } from "./geocode.js";
-import { getFeasibleCandidates } from "./route-search.js";
+import { getFeasibleCandidates, estimateSearchRadiusKm, travelMinutes, haversineKm } from "./route-search.js";
+import { searchNearby } from "./nearby-search.js";
 
 const els = {
   panel: document.getElementById("panel"),
@@ -50,6 +51,7 @@ let locationTracker;
 let geocodeToken = 0;
 let stayTouched = false;
 let routeSearch = null; // { currentPos: {lat,lng}, usedMinutes: number, nextOrder: number }
+let candidateToken = 0;
 
 async function init() {
   map = initMap("map");
@@ -340,45 +342,109 @@ async function openRouteSearch() {
   renderCandidateList();
 }
 
-function renderCandidateList() {
+function isNearExistingPoint(candidate, points) {
+  return points.some((p) => haversineKm(candidate, p) < 0.03);
+}
+
+async function renderCandidateList() {
   if (!routeSearch) return;
+  const token = ++candidateToken;
+
   const remaining = Math.max(0, currentRoute.desiredMinutes - routeSearch.usedMinutes);
   els.routeSearchProgress.textContent = `使用時間 約${Math.round(routeSearch.usedMinutes)}分 / 希望${currentRoute.desiredMinutes}分(残り約${Math.round(remaining)}分、起点への戻り時間を含みます)`;
 
-  const candidates = getFeasibleCandidates(currentRoute, routeSearch.currentPos, routeSearch.usedMinutes);
-  els.routeSearchCandidates.innerHTML = "";
-  els.routeSearchEmpty.classList.toggle("hidden", candidates.length > 0);
+  els.routeSearchEmpty.classList.add("hidden");
+  els.routeSearchCandidates.innerHTML = '<li class="candidate-loading">周辺を検索中…</li>';
 
-  for (const { point, travelFromCurrent } of candidates) {
+  const registered = getFeasibleCandidates(currentRoute, routeSearch.currentPos, routeSearch.usedMinutes).map(
+    (c) => ({
+      source: "registered",
+      point: c.point,
+      name: c.point.name,
+      popularity: c.point.popularity,
+      travelFromCurrent: c.travelFromCurrent,
+    })
+  );
+
+  const start = currentRoute.points.find((p) => p.type === "start");
+  const radiusKm = estimateSearchRadiusKm(remaining, currentRoute.transportMode);
+  const nearby = await searchNearby(routeSearch.currentPos, radiusKm);
+
+  if (token !== candidateToken) return; // 別の操作(候補選択・検索終了など)が割り込んだ
+
+  const osmCandidates = nearby
+    .filter((n) => !isNearExistingPoint(n, currentRoute.points))
+    .map((n) => {
+      const travelFromCurrent = travelMinutes(routeSearch.currentPos, n, currentRoute.transportMode);
+      const backToStart = travelMinutes(n, start, currentRoute.transportMode);
+      return {
+        source: "osm",
+        name: n.name,
+        lat: n.lat,
+        lng: n.lng,
+        genre: n.genre,
+        travelFromCurrent,
+        totalIfChosen: routeSearch.usedMinutes + travelFromCurrent + backToStart,
+      };
+    })
+    .filter((c) => c.totalIfChosen <= currentRoute.desiredMinutes);
+
+  const merged = [...registered, ...osmCandidates].sort((a, b) => a.travelFromCurrent - b.travelFromCurrent);
+
+  els.routeSearchCandidates.innerHTML = "";
+  els.routeSearchEmpty.classList.toggle("hidden", merged.length > 0);
+
+  for (const c of merged) {
+    const meta =
+      c.source === "registered"
+        ? `${starString(c.popularity)} ・ 移動約${Math.round(c.travelFromCurrent)}分`
+        : `${escapeHtml(c.genre)} ・ 移動約${Math.round(c.travelFromCurrent)}分`;
     const li = document.createElement("li");
     li.innerHTML = `
       <div class="candidate-info">
-        <div class="candidate-name">${escapeHtml(point.name)}</div>
-        <div class="candidate-meta">${starString(point.popularity)} ・ 移動約${Math.round(travelFromCurrent)}分</div>
+        <div class="candidate-name">${escapeHtml(c.name)}</div>
+        <div class="candidate-meta">${meta}</div>
       </div>
       <button type="button" class="select-btn">選択</button>
     `;
-    li.querySelector(".select-btn").addEventListener("click", () => selectCandidate(point.id, travelFromCurrent));
+    li.querySelector(".select-btn").addEventListener("click", () => selectCandidate(c));
     els.routeSearchCandidates.appendChild(li);
   }
 }
 
-async function selectCandidate(pointId, travelFromCurrent) {
-  const point = currentRoute.points.find((p) => p.id === pointId);
-  if (!point || !routeSearch) return;
+async function selectCandidate(candidate) {
+  if (!routeSearch) return;
 
-  point.included = true;
-  point.order = routeSearch.nextOrder++;
+  let point;
+  if (candidate.source === "registered") {
+    point = candidate.point;
+    point.included = true;
+    point.order = routeSearch.nextOrder++;
+  } else {
+    point = newPoint({
+      type: "sightseeing",
+      name: candidate.name,
+      memo: "",
+      lat: candidate.lat,
+      lng: candidate.lng,
+      order: routeSearch.nextOrder++,
+      included: true,
+      popularity: 3,
+      genre: candidate.genre,
+    });
+    currentRoute.points.push(point);
+  }
   await saveRoute(currentRoute);
 
   routeSearch.currentPos = { lat: point.lat, lng: point.lng };
-  routeSearch.usedMinutes += travelFromCurrent;
+  routeSearch.usedMinutes += candidate.travelFromCurrent;
 
   renderAll();
   renderCandidateList();
 }
 
 function closeRouteSearch() {
+  candidateToken++;
   els.routeSearchModal.classList.add("hidden");
   routeSearch = null;
 }

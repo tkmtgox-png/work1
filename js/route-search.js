@@ -18,8 +18,8 @@ export function travelMinutes(a, b, transportMode) {
   return (km / speed) * 60;
 }
 
-// 現在位置(直近に選んだ観光スポット、または起点)から移動できる観光スポットの候補を、
-// 起点への戻り時間も含めて希望時間内に収まるものだけ、人気度の高い順(同点は近い順)で返す。
+// 現在位置(直近に選んだ観光スポット、または起点)から移動できる観光スポットの候補のうち、
+// 起点への戻り時間も含めて希望時間内に収まるものだけを返す(未ソート、呼び出し側でまとめて並び替える)。
 // 滞在時間はこの時間予算には含めない。
 export function getFeasibleCandidates(route, currentLatLng, usedMinutes) {
   const start = route.points.find((p) => p.type === "start");
@@ -36,11 +36,15 @@ export function getFeasibleCandidates(route, currentLatLng, usedMinutes) {
       const totalIfChosen = usedMinutes + fromCurrent + backToStart;
       return { point, travelFromCurrent: fromCurrent, totalIfChosen };
     })
-    .filter((c) => c.totalIfChosen <= route.desiredMinutes)
-    .sort((a, b) => {
-      if (b.point.popularity !== a.point.popularity) {
-        return b.point.popularity - a.point.popularity;
-      }
-      return a.travelFromCurrent - b.travelFromCurrent;
-    });
+    .filter((c) => c.totalIfChosen <= route.desiredMinutes);
+}
+
+// 周辺検索(Overpass API)の検索半径の目安。残り時間の半分を片道の上限距離とみなし、
+// 移動手段の速度から逆算する。都心部などでは半径が大きいとOverpassの応答が
+// 重くなりタイムアウトしやすいため、上限は8kmに抑える。
+export function estimateSearchRadiusKm(remainingMinutes, transportMode) {
+  const speed = SPEED_KMH[transportMode] || SPEED_KMH.walk;
+  const oneWayMinutes = Math.max(0, remainingMinutes) / 2;
+  const km = (oneWayMinutes / 60) * speed / DETOUR_FACTOR;
+  return Math.min(8, Math.max(1, km));
 }
