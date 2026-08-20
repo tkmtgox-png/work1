@@ -32,6 +32,9 @@
 - Overpass APIが失敗・タイムアウトした場合は空配列を返し、登録済み候補のみで続行する(`nearby-search.js`内でcatch)
 - 既存データ(`stayMinutes`/`included`/`popularity`/`genre`が無い過去のポイント)は、`included !== false`(未定義なら含む)・`popularity`未設定時は3・`genre`未設定時は空文字として扱う後方互換を維持している(`js/points.js` の `newPoint`)
 
+## 場所の検索機能(`js/geocode.js: searchPlaces` + `js/app.js`)
+地図左上の検索ボックス(`#place-search`)に地名・住所を入力すると、Nominatim(OpenStreetMap)の`/search`エンドポイントで順ジオコーディングを行い、候補を最大5件リスト表示する(`#place-search-results`)。候補を選ぶと`map.setView`で地図がその地点へ移動し、一時的な目印マーカー(`searchResultMarker`)を1つ立てるのみで、**ポイントとしては登録しない**(ポイント追加は従来通り地図クリックで行う)。地図クリックや次の検索実行時に目印マーカーは消える。既存の逆ジオコーディング(`reverseGeocode`、座標→地名、ポイント追加時の名前自動入力に使用)とは対称的な機能。
+
 ## 将来の拡張に向けて
 - GPSによる実走行/実歩行の軌跡記録: `points` と同階層に `recordedTrack: [{lat, lng, timestamp}]` を追加する形で拡張できるよう、データモデルはあえてシンプルに保っている(未実装)。
 - 地図タイル自体のオフラインキャッシュは行っていない(アプリシェルのみキャッシュ)。オフライン対応を強化する場合は `sw.js` のキャッシュ戦略を見直すこと。

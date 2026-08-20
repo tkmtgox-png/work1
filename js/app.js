@@ -2,7 +2,7 @@ import { getAllRoutes, saveRoute, deleteRoute, createEmptyRoute } from "./storag
 import { POINT_TYPES, newPoint, makeDivIcon, renderPointList, starString, escapeHtml } from "./points.js";
 import { initMap, createLocationTracker } from "./map.js";
 import { drawRoute, clearRoute } from "./routing.js";
-import { reverseGeocode } from "./geocode.js";
+import { reverseGeocode, searchPlaces } from "./geocode.js";
 import { getFeasibleCandidates, estimateSearchRadiusKm, travelMinutes, haversineKm } from "./route-search.js";
 import { searchNearby } from "./nearby-search.js";
 
@@ -10,6 +10,9 @@ const els = {
   panel: document.getElementById("panel"),
   panelToggle: document.getElementById("panel-toggle"),
   panelClose: document.getElementById("panel-close"),
+  placeSearchForm: document.getElementById("place-search"),
+  placeSearchInput: document.getElementById("place-search-input"),
+  placeSearchResults: document.getElementById("place-search-results"),
   routeSelect: document.getElementById("route-select"),
   newRouteBtn: document.getElementById("new-route-btn"),
   renameRouteBtn: document.getElementById("rename-route-btn"),
@@ -52,6 +55,8 @@ let geocodeToken = 0;
 let stayTouched = false;
 let routeSearch = null; // { currentPos: {lat,lng}, usedMinutes: number, nextOrder: number }
 let candidateToken = 0;
+let searchResultMarker = null;
+let placeSearchToken = 0;
 
 async function init() {
   map = initMap("map");
@@ -75,7 +80,20 @@ function bindUI() {
   els.panelToggle.addEventListener("click", () => els.panel.classList.add("open"));
   els.panelClose.addEventListener("click", () => els.panel.classList.remove("open"));
 
-  map.on("click", (e) => openPointModal({ mode: "add", latlng: e.latlng }));
+  map.on("click", (e) => {
+    clearSearchResultMarker();
+    openPointModal({ mode: "add", latlng: e.latlng });
+  });
+
+  els.placeSearchForm.addEventListener("submit", handlePlaceSearch);
+  document.addEventListener("click", (e) => {
+    if (els.placeSearchResults.classList.contains("hidden")) return;
+    if (els.placeSearchForm.contains(e.target) || els.placeSearchResults.contains(e.target)) return;
+    els.placeSearchResults.classList.add("hidden");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") els.placeSearchResults.classList.add("hidden");
+  });
 
   els.routeSelect.addEventListener("change", () => {
     currentRoute = routes.find((r) => r.id === els.routeSelect.value);
@@ -261,6 +279,45 @@ async function fillNameFromMap(latlng) {
   if (els.modal.classList.contains("hidden")) return;
   if (els.nameInput.value.trim() !== "") return;
   els.nameInput.value = name;
+}
+
+async function handlePlaceSearch(e) {
+  e.preventDefault();
+  const query = els.placeSearchInput.value.trim();
+  if (!query) return;
+
+  const token = ++placeSearchToken;
+  els.placeSearchResults.classList.remove("hidden");
+  els.placeSearchResults.innerHTML = '<li class="search-status">検索中…</li>';
+
+  const results = await searchPlaces(query);
+  if (token !== placeSearchToken) return;
+
+  els.placeSearchResults.innerHTML = "";
+  if (results.length === 0) {
+    els.placeSearchResults.innerHTML = '<li class="search-status">見つかりませんでした</li>';
+    return;
+  }
+  for (const result of results) {
+    const li = document.createElement("li");
+    li.textContent = result.label;
+    li.addEventListener("click", () => selectPlaceResult(result));
+    els.placeSearchResults.appendChild(li);
+  }
+}
+
+function selectPlaceResult(result) {
+  map.setView([result.lat, result.lng], 17);
+  clearSearchResultMarker();
+  searchResultMarker = L.marker([result.lat, result.lng]).addTo(map).bindPopup(escapeHtml(result.label)).openPopup();
+  els.placeSearchResults.classList.add("hidden");
+}
+
+function clearSearchResultMarker() {
+  if (searchResultMarker) {
+    map.removeLayer(searchResultMarker);
+    searchResultMarker = null;
+  }
 }
 
 function closePointModal() {

@@ -1,4 +1,5 @@
 const REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
+const SEARCH_URL = "https://nominatim.openstreetmap.org/search";
 
 export async function reverseGeocode(lat, lng) {
   const url = `${REVERSE_URL}?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&accept-language=ja`;
@@ -6,6 +7,25 @@ export async function reverseGeocode(lat, lng) {
   if (!res.ok) throw new Error(`reverse geocode failed: ${res.status}`);
   const data = await res.json();
   return extractName(data);
+}
+
+// 地名・住所から座標を検索する(順ジオコーディング)。地図移動用の候補一覧表示に使う。
+export async function searchPlaces(query) {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const url = `${SEARCH_URL}?format=jsonv2&q=${encodeURIComponent(trimmed)}&accept-language=ja&limit=5`;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.map((item) => ({
+      label: firstAltName(item.display_name || ""),
+      lat: Number(item.lat),
+      lng: Number(item.lon),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function extractName(data) {
