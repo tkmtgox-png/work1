@@ -1,10 +1,10 @@
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 
-const TOURISM_TAGS = "attraction|museum|zoo|aquarium|gallery|theme_park|viewpoint|artwork";
-const HISTORIC_TAGS = "castle|monument|memorial|shrine|temple|ruins";
+const TOURISM_TAGS = "attraction|museum|zoo|aquarium|gallery|theme_park|viewpoint|artwork|garden";
+const HISTORIC_TAGS = "castle|monument|memorial|shrine|temple|ruins|fort";
 
-const RESULT_LIMIT = 60;
-const FETCH_TIMEOUT_MS = 15000;
+const RESULT_LIMIT = 80;
+const FETCH_TIMEOUT_MS = 20000;
 
 function buildQuery(lat, lng, radiusKm) {
   const radiusMeters = Math.round(radiusKm * 1000);
@@ -16,6 +16,15 @@ function buildQuery(lat, lng, radiusKm) {
     way["historic"~"${HISTORIC_TAGS}"](${around});
     node["amenity"="place_of_worship"](${around});
     way["amenity"="place_of_worship"](${around});
+    node["leisure"="park"](${around});
+    way["leisure"="park"](${around});
+    relation["leisure"="park"](${around});
+    node["natural"="waterfall"](${around});
+    way["natural"="waterfall"](${around});
+    node["man_made"="tower"](${around});
+    way["man_made"="tower"](${around});
+    node["amenity"="marketplace"](${around});
+    way["amenity"="marketplace"](${around});
   );out center tags ${RESULT_LIMIT};`;
 }
 
@@ -28,7 +37,9 @@ export function genreFromTags(tags) {
   if (tags.tourism === "theme_park") return "テーマパーク";
   if (tags.tourism === "viewpoint") return "展望スポット";
   if (tags.tourism === "artwork") return "アート・記念碑";
+  if (tags.tourism === "garden") return "庭園";
   if (tags.historic === "castle") return "城";
+  if (tags.historic === "fort") return "砦";
   if (tags.historic === "monument" || tags.historic === "memorial") return "記念碑";
   if (tags.historic === "ruins") return "史跡";
   if (tags.historic === "shrine") return "神社";
@@ -38,6 +49,10 @@ export function genreFromTags(tags) {
     if (tags.religion === "buddhist") return "寺";
     return "宗教施設";
   }
+  if (tags.leisure === "park") return "公園";
+  if (tags.natural === "waterfall") return "滝";
+  if (tags.man_made === "tower") return "タワー・展望施設";
+  if (tags.amenity === "marketplace") return "市場";
   if (tags.tourism === "attraction") return "観光名所";
   return "観光スポット";
 }
