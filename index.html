@@ -136,7 +136,14 @@
 
   <div id="route-search-modal" class="modal hidden">
     <div class="modal-content">
-      <h2>ルート検索</h2>
+      <div class="modal-header">
+        <h2>ルート検索</h2>
+        <button type="button" id="route-search-close" class="modal-close-btn" aria-label="閉じる">×</button>
+      </div>
+      <label class="field-row">
+        ジャンルで絞り込み
+        <select id="route-search-genre-filter"><option value="">すべて</option></select>
+      </label>
       <p id="route-search-progress" class="route-search-progress"></p>
       <ul id="route-search-candidates" class="candidate-list"></ul>
       <p id="route-search-empty" class="hint hidden">希望時間内で追加できる観光スポットがなくなりました。</p>

@@ -22,6 +22,8 @@ const els = {
   desiredMinutes: document.getElementById("desired-minutes"),
   routeSearchBtn: document.getElementById("route-search-btn"),
   routeSearchModal: document.getElementById("route-search-modal"),
+  routeSearchCloseBtn: document.getElementById("route-search-close"),
+  routeSearchGenreFilter: document.getElementById("route-search-genre-filter"),
   routeSearchProgress: document.getElementById("route-search-progress"),
   routeSearchCandidates: document.getElementById("route-search-candidates"),
   routeSearchEmpty: document.getElementById("route-search-empty"),
@@ -190,6 +192,8 @@ function bindUI() {
 
   els.routeSearchBtn.addEventListener("click", openRouteSearch);
   els.routeSearchFinishBtn.addEventListener("click", closeRouteSearch);
+  els.routeSearchCloseBtn.addEventListener("click", closeRouteSearch);
+  els.routeSearchGenreFilter.addEventListener("change", renderFilteredCandidates);
 
   els.trackToggle.addEventListener("change", () => {
     if (els.trackToggle.checked) {
@@ -410,8 +414,10 @@ async function openRouteSearch() {
     currentPos: { lat: start.lat, lng: start.lng },
     usedMinutes: 0,
     nextOrder: (mandatoryOrders.length ? Math.max(...mandatoryOrders) : -1) + 1,
+    lastMerged: [],
   };
 
+  els.routeSearchGenreFilter.value = "";
   els.routeSearchModal.classList.remove("hidden");
   renderCandidateList();
 }
@@ -436,6 +442,7 @@ async function renderCandidateList() {
       point: c.point,
       name: c.point.name,
       popularity: c.point.popularity,
+      genre: c.point.genre,
       travelFromCurrent: c.travelFromCurrent,
     })
   );
@@ -464,11 +471,40 @@ async function renderCandidateList() {
     .filter((c) => c.totalIfChosen <= currentRoute.desiredMinutes);
 
   const merged = [...registered, ...osmCandidates].sort((a, b) => a.travelFromCurrent - b.travelFromCurrent);
+  routeSearch.lastMerged = merged;
+
+  updateGenreFilterOptions(merged);
+  renderFilteredCandidates();
+}
+
+function updateGenreFilterOptions(merged) {
+  const previous = els.routeSearchGenreFilter.value;
+  const genres = [...new Set(merged.map((c) => c.genre).filter(Boolean))];
+
+  els.routeSearchGenreFilter.innerHTML = '<option value="">すべて</option>';
+  for (const genre of genres) {
+    const opt = document.createElement("option");
+    opt.value = genre;
+    opt.textContent = genre;
+    els.routeSearchGenreFilter.appendChild(opt);
+  }
+  els.routeSearchGenreFilter.value = genres.includes(previous) ? previous : "";
+}
+
+function renderFilteredCandidates() {
+  if (!routeSearch) return;
+  const merged = routeSearch.lastMerged;
+  const genre = els.routeSearchGenreFilter.value;
+  const filtered = genre ? merged.filter((c) => c.genre === genre) : merged;
 
   els.routeSearchCandidates.innerHTML = "";
-  els.routeSearchEmpty.classList.toggle("hidden", merged.length > 0);
+  els.routeSearchEmpty.classList.toggle("hidden", filtered.length > 0);
+  els.routeSearchEmpty.textContent =
+    merged.length === 0
+      ? "希望時間内で追加できる観光スポットがなくなりました。"
+      : "選択したジャンルに一致する候補がありません。";
 
-  for (const c of merged) {
+  for (const c of filtered) {
     const meta =
       c.source === "registered"
         ? `${starString(c.popularity)} ・ 移動約${Math.round(c.travelFromCurrent)}分`

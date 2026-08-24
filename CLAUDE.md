@@ -7,6 +7,7 @@
 - ビルドツール・フレームワークは使用しない。ES Modules(`<script type="module">`)でファイルを分割した素のHTML/CSS/JS。
 - 地図はLeaflet + OpenStreetMap(CDN読み込み)。ルート探索はLeaflet Routing Machine + OSRM公開デモサーバー(取得失敗時は直線描画にフォールバック)。
 - データはIndexedDB(`course-map-db`)にのみ保存し、端末間の自動同期は行わない。
+- 動作確認のためにローカルサーバー(`python -m http.server` 等)やその他のバックグラウンドプロセスを起動した場合、実装・確認作業が完了したら**必ず停止すること**(ポートを開いたまま放置しない)。停止後はポートが応答しないことまで確認する。テストのために一時的に緩めた設定(公開範囲・認証・デバッグ用の穴など、脆弱性になり得るもの全般)も同様に、作業完了後は必ず元に戻す。
 
 ## データモデル
 `routes` ストア: `{ id, name, transportMode: 'walk'|'car', desiredMinutes: number|null, createdAt, updatedAt, points: [...] }`
@@ -31,6 +32,8 @@
 - 候補が無くなると自動的にリストが空になり終了メッセージを表示。「ここで確定」ボタンでいつでも終了できる(それまでの選択は選んだ時点で都度保存済み)
 - Overpass APIが失敗・タイムアウトした場合は空配列を返し、登録済み候補のみで続行する(`nearby-search.js`内でcatch)
 - 既存データ(`stayMinutes`/`included`/`popularity`/`genre`が無い過去のポイント)は、`included !== false`(未定義なら含む)・`popularity`未設定時は3・`genre`未設定時は空文字として扱う後方互換を維持している(`js/points.js` の `newPoint`)
+- モーダル右上に閉じる用の「×」(`#route-search-close`)があり、「ここで確定」(`#route-search-finish`)と全く同じ`closeRouteSearch`を呼ぶだけ(選択済み内容の巻き戻しはしない、単に閉じるだけ)
+- モーダル上部の「ジャンルで絞り込み」プルダウン(`#route-search-genre-filter`)は、Overpassへの再検索はせず、取得済みの候補一覧(`routeSearch.lastMerged`)をクライアント側でジャンル一致フィルタするだけ(`app.js: renderFilteredCandidates`)。選択肢は現在の候補に含まれるジャンルから動的に生成し(`updateGenreFilterOptions`)、選択中のジャンルが次の候補一覧にも存在すれば維持する。登録済み候補も`genre`が設定されていればジャンル絞り込みの対象になる(手動登録でジャンル未設定の場合は「すべて」以外では表示されない)
 
 ## 場所の検索機能(`js/geocode.js: searchPlaces` + `js/app.js`)
 地図左上の検索ボックス(`#place-search`)に地名・住所を入力すると、Nominatim(OpenStreetMap)の`/search`エンドポイントで順ジオコーディングを行い、候補を最大5件リスト表示する(`#place-search-results`)。候補を選ぶと`map.setView`で地図がその地点へ移動し、一時的な目印マーカー(`searchResultMarker`)を1つ立てるのみで、**ポイントとしては登録しない**(ポイント追加は従来通り地図クリックで行う)。地図クリックや次の検索実行時に目印マーカーは消える。既存の逆ジオコーディング(`reverseGeocode`、座標→地名、ポイント追加時の名前自動入力に使用)とは対称的な機能。
