@@ -123,6 +123,27 @@ html, body {
   cursor: default;
 }
 
+.locate-btn {
+  position: absolute;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: 92px;
+  z-index: 900;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: none;
+  background: var(--panel-bg);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+  font-size: 20px;
+  color: var(--accent);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
 #panel {
   position: absolute;
   top: 0;

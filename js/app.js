@@ -1,6 +1,6 @@
 import { getAllRoutes, saveRoute, deleteRoute, createEmptyRoute } from "./storage.js";
 import { POINT_TYPES, newPoint, makeDivIcon, renderPointList, starString, escapeHtml } from "./points.js";
-import { initMap, createLocationTracker } from "./map.js";
+import { initMap, createLocationTracker, locateOnce } from "./map.js";
 import { drawRoute, clearRoute } from "./routing.js";
 import { reverseGeocode, searchPlaces } from "./geocode.js";
 import { getFeasibleCandidates, estimateSearchRadiusKm, travelMinutes, haversineKm } from "./route-search.js";
@@ -13,6 +13,7 @@ const els = {
   placeSearchForm: document.getElementById("place-search"),
   placeSearchInput: document.getElementById("place-search-input"),
   placeSearchResults: document.getElementById("place-search-results"),
+  locateBtn: document.getElementById("locate-btn"),
   routeSelect: document.getElementById("route-select"),
   newRouteBtn: document.getElementById("new-route-btn"),
   renameRouteBtn: document.getElementById("rename-route-btn"),
@@ -74,6 +75,15 @@ async function init() {
   refreshRouteSelect();
   renderAll();
   registerServiceWorker();
+
+  if (els.trackToggle.checked) {
+    locationTracker.start((msg) => (els.locationStatus.textContent = msg));
+  }
+}
+
+function focusOnRouteStart(route) {
+  const start = route.points.find((p) => p.type === "start");
+  if (start) map.setView([start.lat, start.lng], 15);
 }
 
 function bindUI() {
@@ -98,6 +108,7 @@ function bindUI() {
   els.routeSelect.addEventListener("change", () => {
     currentRoute = routes.find((r) => r.id === els.routeSelect.value);
     renderAll();
+    focusOnRouteStart(currentRoute);
   });
 
   els.newRouteBtn.addEventListener("click", async () => {
@@ -109,6 +120,7 @@ function bindUI() {
     currentRoute = route;
     refreshRouteSelect();
     renderAll();
+    focusOnRouteStart(currentRoute);
   });
 
   els.renameRouteBtn.addEventListener("click", async () => {
@@ -130,6 +142,7 @@ function bindUI() {
     currentRoute = routes[0];
     refreshRouteSelect();
     renderAll();
+    focusOnRouteStart(currentRoute);
   });
 
   els.transportMode.addEventListener("change", async () => {
@@ -185,6 +198,10 @@ function bindUI() {
       locationTracker.stop();
       els.locationStatus.textContent = "";
     }
+  });
+
+  els.locateBtn.addEventListener("click", () => {
+    locateOnce(map, (msg) => (els.locationStatus.textContent = msg));
   });
 }
 

@@ -27,6 +27,8 @@
   </form>
   <ul id="place-search-results" class="place-search-results hidden"></ul>
 
+  <button id="locate-btn" class="locate-btn" aria-label="現在地に移動">◎</button>
+
   <aside id="panel">
     <div class="panel-header">
       <h1>コースマップ</h1>
@@ -69,7 +71,7 @@
 
     <section id="location-section">
       <label class="switch-row">
-        <input type="checkbox" id="track-location-toggle" />
+        <input type="checkbox" id="track-location-toggle" checked />
         現在地をリアルタイム表示
       </label>
       <p id="location-status" class="hint"></p>

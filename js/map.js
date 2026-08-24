@@ -43,6 +43,21 @@ function describeGeolocationError(err) {
   }
 }
 
+export function locateOnce(map, onStatus) {
+  if (!navigator.geolocation) {
+    onStatus("この端末では位置情報がサポートされていません");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      map.setView([pos.coords.latitude, pos.coords.longitude], DEFAULT_ZOOM);
+      onStatus("");
+    },
+    (err) => onStatus(describeGeolocationError(err)),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
 export function createLocationTracker(map) {
   let marker = null;
   let watchId = null;
