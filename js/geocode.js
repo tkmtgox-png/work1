@@ -20,6 +20,7 @@ export async function searchPlaces(query) {
     const data = await res.json();
     return data.map((item) => ({
       label: firstAltName(item.display_name || ""),
+      name: firstAltName((item.display_name || "").split(",")[0]),
       lat: Number(item.lat),
       lng: Number(item.lon),
     }));

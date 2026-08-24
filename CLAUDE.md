@@ -36,7 +36,9 @@
 - モーダル上部の「ジャンルで絞り込み」プルダウン(`#route-search-genre-filter`)は、Overpassへの再検索はせず、取得済みの候補一覧(`routeSearch.lastMerged`)をクライアント側でジャンル一致フィルタするだけ(`app.js: renderFilteredCandidates`)。選択肢は現在の候補に含まれるジャンルから動的に生成し(`updateGenreFilterOptions`)、選択中のジャンルが次の候補一覧にも存在すれば維持する。登録済み候補も`genre`が設定されていればジャンル絞り込みの対象になる(手動登録でジャンル未設定の場合は「すべて」以外では表示されない)
 
 ## 場所の検索機能(`js/geocode.js: searchPlaces` + `js/app.js`)
-地図左上の検索ボックス(`#place-search`)に地名・住所を入力すると、Nominatim(OpenStreetMap)の`/search`エンドポイントで順ジオコーディングを行い、候補を最大5件リスト表示する(`#place-search-results`)。候補を選ぶと`map.setView`で地図がその地点へ移動し、一時的な目印マーカー(`searchResultMarker`)を1つ立てるのみで、**ポイントとしては登録しない**(ポイント追加は従来通り地図クリックで行う)。地図クリックや次の検索実行時に目印マーカーは消える。既存の逆ジオコーディング(`reverseGeocode`、座標→地名、ポイント追加時の名前自動入力に使用)とは対称的な機能。
+地図左上の検索ボックス(`#place-search`)に地名・住所を入力すると、Nominatim(OpenStreetMap)の`/search`エンドポイントで順ジオコーディングを行い、候補を最大5件リスト表示する(`#place-search-results`)。`searchPlaces`は表示用のフル住所(`label`)とポイント名初期値用の短い名前(`name`、`display_name`の最初のカンマ区切り部分)の両方を返す。候補を選ぶと`map.setView`で地図がその地点へ移動し、一時的な目印マーカー(`searchResultMarker`)を1つ立てる。既存の逆ジオコーディング(`reverseGeocode`、座標→地名、ポイント追加時の名前自動入力に使用)とは対称的な機能。
+- サイドパネル(`#panel`)を開いている間は検索ボックス・結果ドロップダウンを`hidden`クラスで一時非表示にする(`js/app.js`の`panelToggle`/`panelClose`のクリックハンドラ)。パネルのz-indexが検索ボックスより高く、パネル幅が画面幅の85%まで広がり得るため、重なって隠れてしまうのを避けるための対応。閉じると検索ボックスのみ再表示(結果ドロップダウンは再表示しない)
+- 目印マーカーのポップアップ(`app.js: buildSearchResultPopup`)には「ポイントとして追加」ボタンがあり、押すと`openPointModal({mode:"add", latlng, defaultType, defaultName})`で既存のポイント追加モーダルを開く。`defaultType`はそのルートに起点が無ければ`"start"`、あれば`"sightseeing"`。`defaultName`には検索結果のラベルを渡し、この場合は逆ジオコーディングによる名前の自動入力(`fillNameFromMap`)をスキップする。保存後は一時マーカーを消す(`clearSearchResultMarker`、新しいポイントのマーカーと重複しないように)
 
 ## 地図移動まわりの挙動(`js/app.js` + `js/map.js`)
 - ルート切り替え時、そのルートに起点があれば`focusOnRouteStart(route)`(`app.js`)が地図をその起点へ`map.setView([lat,lng], 15)`で移動する。呼び出し箇所はルート選択(`#route-select`のchange)・新規ルート作成・ルート削除後の3箇所(いずれも`currentRoute`が別のルートに切り替わるタイミング)。起点が無いルートでは何もしない。初期表示(アプリ起動時に最初のルートを選ぶ処理)には適用していない。`map.js: initMap()`が既に非同期でGPSの現在地へ一度地図を寄せる処理を持っており、そこに割り込ませるとGPS取得タイミング次第で表示がちらつくため

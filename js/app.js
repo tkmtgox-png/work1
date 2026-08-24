@@ -89,8 +89,15 @@ function focusOnRouteStart(route) {
 }
 
 function bindUI() {
-  els.panelToggle.addEventListener("click", () => els.panel.classList.add("open"));
-  els.panelClose.addEventListener("click", () => els.panel.classList.remove("open"));
+  els.panelToggle.addEventListener("click", () => {
+    els.panel.classList.add("open");
+    els.placeSearchForm.classList.add("hidden");
+    els.placeSearchResults.classList.add("hidden");
+  });
+  els.panelClose.addEventListener("click", () => {
+    els.panel.classList.remove("open");
+    els.placeSearchForm.classList.remove("hidden");
+  });
 
   map.on("click", (e) => {
     clearSearchResultMarker();
@@ -255,14 +262,14 @@ function renderRoute() {
   drawRoute(map, currentRoute);
 }
 
-function openPointModal({ mode, point, latlng }) {
+function openPointModal({ mode, point, latlng, defaultType, defaultName }) {
   editingPointId = mode === "edit" ? point.id : null;
   pendingLatLng = mode === "add" ? latlng : null;
   stayTouched = false;
 
   els.modalTitle.textContent = mode === "add" ? "ポイントを追加" : "ポイントの詳細";
-  els.typeSelect.value = mode === "edit" ? point.type : "waypoint";
-  els.nameInput.value = mode === "edit" ? point.name : "";
+  els.typeSelect.value = mode === "edit" ? point.type : defaultType || "waypoint";
+  els.nameInput.value = mode === "edit" ? point.name : defaultName || "";
   els.memoInput.value = mode === "edit" ? point.memo : "";
   els.arrivalInput.value = mode === "edit" ? point.arrivalTime : "";
   updateArrivalDisplay();
@@ -274,7 +281,7 @@ function openPointModal({ mode, point, latlng }) {
   els.modal.classList.remove("hidden");
   els.nameInput.focus();
 
-  if (mode === "add") {
+  if (mode === "add" && !defaultName) {
     fillNameFromMap(latlng);
   }
 }
@@ -330,8 +337,35 @@ async function handlePlaceSearch(e) {
 function selectPlaceResult(result) {
   map.setView([result.lat, result.lng], 17);
   clearSearchResultMarker();
-  searchResultMarker = L.marker([result.lat, result.lng]).addTo(map).bindPopup(escapeHtml(result.label)).openPopup();
+  searchResultMarker = L.marker([result.lat, result.lng])
+    .addTo(map)
+    .bindPopup(buildSearchResultPopup(result))
+    .openPopup();
   els.placeSearchResults.classList.add("hidden");
+}
+
+function buildSearchResultPopup(result) {
+  const container = document.createElement("div");
+  const label = document.createElement("div");
+  label.textContent = result.label;
+  container.appendChild(label);
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "popup-add-point-btn";
+  addBtn.textContent = "ポイントとして追加";
+  addBtn.addEventListener("click", () => {
+    const hasStart = currentRoute.points.some((p) => p.type === "start");
+    openPointModal({
+      mode: "add",
+      latlng: { lat: result.lat, lng: result.lng },
+      defaultType: hasStart ? "sightseeing" : "start",
+      defaultName: result.name,
+    });
+  });
+  container.appendChild(addBtn);
+
+  return container;
 }
 
 function clearSearchResultMarker() {
@@ -385,6 +419,7 @@ async function handlePointFormSubmit(e) {
 
   await saveRoute(currentRoute);
   closePointModal();
+  clearSearchResultMarker();
   renderAll();
 }
 

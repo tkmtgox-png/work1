@@ -519,6 +519,17 @@ button {
   cursor: pointer;
 }
 
+.popup-add-point-btn {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .leaflet-div-icon-marker {
   width: 100%;
   height: 100%;
