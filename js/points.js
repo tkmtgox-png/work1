@@ -8,7 +8,7 @@ export const POINT_TYPES = {
   meal: { label: "食事", color: "#ef4444", icon: "🍴", defaultStayMinutes: 60 },
 };
 
-export function newPoint({ type, name, memo, lat, lng, arrivalTime, order, stayMinutes, included, popularity, genre }) {
+export function newPoint({ type, name, memo, lat, lng, arrivalTime, order, stayMinutes, included, popularity, genre, locked }) {
   const meta = POINT_TYPES[type] || POINT_TYPES.waypoint;
   return {
     id: crypto.randomUUID(),
@@ -23,6 +23,7 @@ export function newPoint({ type, name, memo, lat, lng, arrivalTime, order, stayM
     included: included ?? true,
     popularity: popularity ?? 3,
     genre: genre || "",
+    locked: locked ?? false,
   };
 }
 

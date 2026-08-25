@@ -39,6 +39,55 @@ export function getFeasibleCandidates(route, currentLatLng, usedMinutes) {
     .filter((c) => c.totalIfChosen <= route.desiredMinutes);
 }
 
+// 開始地点からpointsを全て回る巡回順を概算する(直線距離ベース)。最近傍法で初期順を作り、
+// 2-opt(隣接しない2辺を入れ替えて総距離が縮むなら採用)で改善が無くなるまで繰り返す。
+// 移動手段による速度差は全区間に一律にかかるだけで順位には影響しないため、ここではhaversineKmのみで比較する。
+// ポイント数が少ない(実用上10〜20件程度)前提の総当たりで、パフォーマンス上の懸念はない。
+export function optimizeVisitOrder(startPoint, points) {
+  if (points.length <= 1) return points.slice();
+
+  const remaining = points.slice();
+  const tour = [];
+  let cursor = startPoint;
+  while (remaining.length) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    remaining.forEach((p, idx) => {
+      const d = haversineKm(cursor, p);
+      if (d < bestDist) {
+        bestDist = d;
+        bestIdx = idx;
+      }
+    });
+    const next = remaining.splice(bestIdx, 1)[0];
+    tour.push(next);
+    cursor = next;
+  }
+
+  function tourLength(t) {
+    let total = haversineKm(startPoint, t[0]);
+    for (let i = 0; i < t.length - 1; i++) total += haversineKm(t[i], t[i + 1]);
+    total += haversineKm(t[t.length - 1], startPoint);
+    return total;
+  }
+
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let i = 0; i < tour.length - 1; i++) {
+      for (let j = i + 1; j < tour.length; j++) {
+        const candidate = [...tour.slice(0, i), ...tour.slice(i, j + 1).reverse(), ...tour.slice(j + 1)];
+        if (tourLength(candidate) < tourLength(tour) - 1e-9) {
+          tour.splice(0, tour.length, ...candidate);
+          improved = true;
+        }
+      }
+    }
+  }
+
+  return tour;
+}
+
 // 周辺検索(Overpass API)の検索半径の目安。残り時間の半分を片道の上限距離とみなし、
 // 移動手段の速度から逆算する。都心部などでは半径が大きいとOverpassの応答が
 // 重くなりタイムアウトしやすいため、上限は8kmに抑える。

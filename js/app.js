@@ -3,7 +3,7 @@ import { POINT_TYPES, newPoint, makeDivIcon, renderPointList, starString, escape
 import { initMap, createLocationTracker, locateOnce } from "./map.js";
 import { drawRoute, clearRoute } from "./routing.js";
 import { reverseGeocode, searchPlaces } from "./geocode.js";
-import { getFeasibleCandidates, estimateSearchRadiusKm, travelMinutes, haversineKm } from "./route-search.js";
+import { getFeasibleCandidates, estimateSearchRadiusKm, travelMinutes, haversineKm, optimizeVisitOrder } from "./route-search.js";
 import { searchNearby } from "./nearby-search.js";
 
 const els = {
@@ -29,6 +29,7 @@ const els = {
   routeSearchEmpty: document.getElementById("route-search-empty"),
   routeSearchFinishBtn: document.getElementById("route-search-finish"),
   pointList: document.getElementById("point-list"),
+  optimizeOrderBtn: document.getElementById("optimize-order-btn"),
   trackToggle: document.getElementById("track-location-toggle"),
   locationStatus: document.getElementById("location-status"),
   modal: document.getElementById("point-modal"),
@@ -42,6 +43,7 @@ const els = {
   arrivalClockBtn: document.getElementById("point-arrival-clock"),
   stayInput: document.getElementById("point-stay"),
   includedInput: document.getElementById("point-included"),
+  lockedInput: document.getElementById("point-locked"),
   popularityInput: document.getElementById("point-popularity"),
   deleteBtn: document.getElementById("point-delete-btn"),
   cancelBtn: document.getElementById("point-cancel-btn"),
@@ -201,6 +203,7 @@ function bindUI() {
   els.routeSearchFinishBtn.addEventListener("click", closeRouteSearch);
   els.routeSearchCloseBtn.addEventListener("click", closeRouteSearch);
   els.routeSearchGenreFilter.addEventListener("change", renderFilteredCandidates);
+  els.optimizeOrderBtn.addEventListener("click", handleOptimizeOrder);
 
   els.trackToggle.addEventListener("change", () => {
     if (els.trackToggle.checked) {
@@ -275,6 +278,7 @@ function openPointModal({ mode, point, latlng, defaultType, defaultName }) {
   updateArrivalDisplay();
   els.stayInput.value = mode === "edit" ? point.stayMinutes : POINT_TYPES[els.typeSelect.value].defaultStayMinutes;
   els.includedInput.checked = mode === "edit" ? point.included !== false : true;
+  els.lockedInput.checked = mode === "edit" ? point.locked === true : false;
   els.popularityInput.value = mode === "edit" ? point.popularity : 3;
   els.deleteBtn.classList.toggle("hidden", mode !== "edit");
 
@@ -390,6 +394,7 @@ async function handlePointFormSubmit(e) {
   const arrivalTime = els.arrivalInput.value;
   const stayMinutes = Number(els.stayInput.value) || 0;
   const included = els.includedInput.checked;
+  const locked = els.lockedInput.checked;
   const popularity = Number(els.popularityInput.value) || 3;
 
   if (type === "start" && currentRoute.points.some((p) => p.type === "start" && p.id !== editingPointId)) {
@@ -399,7 +404,7 @@ async function handlePointFormSubmit(e) {
 
   if (editingPointId) {
     const point = currentRoute.points.find((p) => p.id === editingPointId);
-    Object.assign(point, { type, name, memo, arrivalTime, stayMinutes, included, popularity });
+    Object.assign(point, { type, name, memo, arrivalTime, stayMinutes, included, locked, popularity });
   } else {
     const order = currentRoute.points.length;
     const point = newPoint({
@@ -412,6 +417,7 @@ async function handlePointFormSubmit(e) {
       order,
       stayMinutes,
       included,
+      locked,
       popularity,
     });
     currentRoute.points.push(point);
@@ -437,18 +443,33 @@ async function openRouteSearch() {
 
   currentRoute.desiredMinutes = minutes;
   for (const p of currentRoute.points) {
-    if (p.type === "sightseeing") p.included = false;
+    if (p.type === "sightseeing") p.included = p.locked === true;
   }
-  await saveRoute(currentRoute);
-  renderAll();
 
   const mandatoryOrders = currentRoute.points
     .filter((p) => p.type === "waypoint" || p.type === "meal")
     .map((p) => p.order);
+  let nextOrder = (mandatoryOrders.length ? Math.max(...mandatoryOrders) : -1) + 1;
+
+  // 固定ポイントは時間判定・リセットの対象外で必ずルートに残る。起点からの巡回順を
+  // optimizeVisitOrderで概算し、そのぶんの移動時間・現在地を対話式検索の初期値にする。
+  const lockedPoints = currentRoute.points.filter((p) => p.type === "sightseeing" && p.locked);
+  const lockedOrder = optimizeVisitOrder(start, lockedPoints);
+  let currentPos = { lat: start.lat, lng: start.lng };
+  let usedMinutes = 0;
+  for (const point of lockedOrder) {
+    usedMinutes += travelMinutes(currentPos, point, currentRoute.transportMode);
+    point.order = nextOrder++;
+    currentPos = { lat: point.lat, lng: point.lng };
+  }
+
+  await saveRoute(currentRoute);
+  renderAll();
+
   routeSearch = {
-    currentPos: { lat: start.lat, lng: start.lng },
-    usedMinutes: 0,
-    nextOrder: (mandatoryOrders.length ? Math.max(...mandatoryOrders) : -1) + 1,
+    currentPos,
+    usedMinutes,
+    nextOrder,
     lastMerged: [],
   };
 
@@ -600,6 +621,32 @@ async function handlePointDelete() {
   currentRoute.points = currentRoute.points.filter((p) => p.id !== editingPointId);
   await saveRoute(currentRoute);
   closePointModal();
+  renderAll();
+}
+
+async function handleOptimizeOrder() {
+  const start = currentRoute.points.find((p) => p.type === "start");
+  if (!start) {
+    alert("先に起点を登録してください");
+    return;
+  }
+  const toOptimize = currentRoute.points.filter((p) => p.type === "sightseeing" && p.included !== false);
+  if (toOptimize.length < 2) {
+    alert("最適化できる観光スポットが2件以上ありません");
+    return;
+  }
+
+  const mandatoryOrders = currentRoute.points
+    .filter((p) => p.type === "waypoint" || p.type === "meal")
+    .map((p) => p.order);
+  let nextOrder = (mandatoryOrders.length ? Math.max(...mandatoryOrders) : -1) + 1;
+
+  const ordered = optimizeVisitOrder(start, toOptimize);
+  for (const point of ordered) {
+    point.order = nextOrder++;
+  }
+
+  await saveRoute(currentRoute);
   renderAll();
 }
 

@@ -66,6 +66,9 @@
     <section id="points-section">
       <div class="section-title">ポイント一覧</div>
       <p class="hint">地図をクリックするとポイントを追加できます。</p>
+      <div class="btn-row">
+        <button type="button" id="optimize-order-btn">順番を最適化</button>
+      </div>
       <ul id="point-list"></ul>
     </section>
 
@@ -124,6 +127,10 @@
         <label class="switch-row">
           <input type="checkbox" id="point-included" checked />
           このルートに含める
+        </label>
+        <label class="switch-row">
+          <input type="checkbox" id="point-locked" />
+          ルート検索でも固定(必ず含める)
         </label>
         <div class="btn-row">
           <button type="submit">保存</button>
