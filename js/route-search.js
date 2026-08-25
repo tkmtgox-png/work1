@@ -88,12 +88,16 @@ export function optimizeVisitOrder(startPoint, points) {
   return tour;
 }
 
-// 周辺検索(Overpass API)の検索半径の目安。残り時間の半分を片道の上限距離とみなし、
-// 移動手段の速度から逆算する。都心部などでは半径が大きいとOverpassの応答が
-// 重くなりタイムアウトしやすいため、上限は8kmに抑える。
+// 周辺検索(Overpass API)の検索半径の目安。残り時間をそのまま片道の上限距離とみなし、
+// 移動手段の速度から逆算する(往復前提で半分にはしない)。起点方向にある候補は、
+// 実際には「往復」ではなく「帰り道への合流」で済むため、現在地からは遠くても
+// 時間内に収まることがある。ここでは検索網を広めに取るだけにとどめ、実際に時間内に
+// 収まるかどうかは呼び出し側(getFeasibleCandidates・renderCandidateListのtotalIfChosen)
+// の判定に任せる。都心部などでは半径が大きいとOverpassの応答が重くなりタイムアウトしやすいため、
+// 上限は8kmに抑える。
 export function estimateSearchRadiusKm(remainingMinutes, transportMode) {
   const speed = SPEED_KMH[transportMode] || SPEED_KMH.walk;
-  const oneWayMinutes = Math.max(0, remainingMinutes) / 2;
+  const oneWayMinutes = Math.max(0, remainingMinutes);
   const km = (oneWayMinutes / 60) * speed / DETOUR_FACTOR;
   return Math.min(8, Math.max(1, km));
 }
