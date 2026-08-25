@@ -116,11 +116,14 @@ export function drawRoute(map, route) {
   control.setWaypoints(latlngs);
 }
 
+// コントロール自体は破棄せず、setWaypoints([])で経路だけ空にする。
+// ポイント削除などで一瞬「2点未満」になった際にmap.removeControl()で物理的に破棄すると、
+// 直前のsetWaypoints()で投げたOSRMへのリクエストがまだ飛んでいる場合、その応答が返ってきた時点で
+// Leaflet Routing Machine内部が既に破棄済みの参照にアクセスして例外を出すことがあるため
+// (「プロフィール変更が無い限りコントロールを使い回す」というgetControlの方針と同じ理由)。
 export function clearRoute(map) {
   if (routingControl) {
-    map.removeControl(routingControl);
-    routingControl = null;
-    currentProfile = null;
+    routingControl.setWaypoints([]);
   }
   clearFallback(map);
   clearSegments(map);
