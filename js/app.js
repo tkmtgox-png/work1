@@ -125,13 +125,7 @@ function bindUI() {
   els.newRouteBtn.addEventListener("click", async () => {
     const name = prompt("新しいルート名を入力してください", `ルート${routes.length + 1}`);
     if (!name) return;
-    const route = createEmptyRoute(name);
-    await saveRoute(route);
-    routes.push(route);
-    currentRoute = route;
-    refreshRouteSelect();
-    renderAll();
-    focusOnRouteStart(currentRoute);
+    await createAndSwitchToNewRoute(name);
   });
 
   els.renameRouteBtn.addEventListener("click", async () => {
@@ -230,6 +224,16 @@ function refreshRouteSelect() {
   }
   els.transportMode.value = currentRoute.transportMode;
   els.desiredMinutes.value = currentRoute.desiredMinutes || "";
+}
+
+async function createAndSwitchToNewRoute(name) {
+  const route = createEmptyRoute(name);
+  await saveRoute(route);
+  routes.push(route);
+  currentRoute = route;
+  refreshRouteSelect();
+  renderAll();
+  focusOnRouteStart(currentRoute);
 }
 
 function renderAll() {
@@ -346,6 +350,7 @@ function selectPlaceResult(result) {
     .bindPopup(buildSearchResultPopup(result))
     .openPopup();
   els.placeSearchResults.classList.add("hidden");
+  els.placeSearchInput.value = "";
 }
 
 function buildSearchResultPopup(result) {
@@ -354,12 +359,13 @@ function buildSearchResultPopup(result) {
   label.textContent = result.label;
   container.appendChild(label);
 
+  const hasStart = currentRoute.points.some((p) => p.type === "start");
+
   const addBtn = document.createElement("button");
   addBtn.type = "button";
   addBtn.className = "popup-add-point-btn";
-  addBtn.textContent = "ポイントとして追加";
+  addBtn.textContent = hasStart ? "観光スポットとして追加" : "ポイントとして追加";
   addBtn.addEventListener("click", () => {
-    const hasStart = currentRoute.points.some((p) => p.type === "start");
     openPointModal({
       mode: "add",
       latlng: { lat: result.lat, lng: result.lng },
@@ -368,6 +374,23 @@ function buildSearchResultPopup(result) {
     });
   });
   container.appendChild(addBtn);
+
+  if (hasStart) {
+    const newRouteBtn = document.createElement("button");
+    newRouteBtn.type = "button";
+    newRouteBtn.className = "popup-add-point-btn";
+    newRouteBtn.textContent = "新しいルートの起点として追加";
+    newRouteBtn.addEventListener("click", async () => {
+      await createAndSwitchToNewRoute(`ルート${routes.length + 1}`);
+      openPointModal({
+        mode: "add",
+        latlng: { lat: result.lat, lng: result.lng },
+        defaultType: "start",
+        defaultName: result.name,
+      });
+    });
+    container.appendChild(newRouteBtn);
+  }
 
   return container;
 }

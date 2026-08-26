@@ -42,9 +42,9 @@
 - ルート検索を使わず手動追加だけのルートでも独立して使える。実際の道路事情(信号・坂道等)は考慮しない直線距離ベースの概算であり、既存のルート検索の移動時間見積もりと同様「あくまで目安」
 
 ## 場所の検索機能(`js/geocode.js: searchPlaces` + `js/app.js`)
-地図左上の検索ボックス(`#place-search`)に地名・住所を入力すると、Nominatim(OpenStreetMap)の`/search`エンドポイントで順ジオコーディングを行い、候補を最大5件リスト表示する(`#place-search-results`)。`searchPlaces`は表示用のフル住所(`label`)とポイント名初期値用の短い名前(`name`、`display_name`の最初のカンマ区切り部分)の両方を返す。候補を選ぶと`map.setView`で地図がその地点へ移動し、一時的な目印マーカー(`searchResultMarker`)を1つ立てる。既存の逆ジオコーディング(`reverseGeocode`、座標→地名、ポイント追加時の名前自動入力に使用)とは対称的な機能。
+地図左上の検索ボックス(`#place-search`)に地名・住所を入力すると、Nominatim(OpenStreetMap)の`/search`エンドポイントで順ジオコーディングを行い、候補を最大5件リスト表示する(`#place-search-results`)。`searchPlaces`は表示用のフル住所(`label`)とポイント名初期値用の短い名前(`name`、`display_name`の最初のカンマ区切り部分)の両方を返す。候補を選ぶと`map.setView`で地図がその地点へ移動し、一時的な目印マーカー(`searchResultMarker`)を1つ立てて検索ボックス(`#place-search-input`)を空にする。既存の逆ジオコーディング(`reverseGeocode`、座標→地名、ポイント追加時の名前自動入力に使用)とは対称的な機能。
 - サイドパネル(`#panel`)を開いている間は検索ボックス・結果ドロップダウンを`hidden`クラスで一時非表示にする(`js/app.js`の`panelToggle`/`panelClose`のクリックハンドラ)。パネルのz-indexが検索ボックスより高く、パネル幅が画面幅の85%まで広がり得るため、重なって隠れてしまうのを避けるための対応。閉じると検索ボックスのみ再表示(結果ドロップダウンは再表示しない)
-- 目印マーカーのポップアップ(`app.js: buildSearchResultPopup`)には「ポイントとして追加」ボタンがあり、押すと`openPointModal({mode:"add", latlng, defaultType, defaultName})`で既存のポイント追加モーダルを開く。`defaultType`はそのルートに起点が無ければ`"start"`、あれば`"sightseeing"`。`defaultName`には検索結果のラベルを渡し、この場合は逆ジオコーディングによる名前の自動入力(`fillNameFromMap`)をスキップする。保存後は一時マーカーを消す(`clearSearchResultMarker`、新しいポイントのマーカーと重複しないように)
+- 目印マーカーのポップアップ(`app.js: buildSearchResultPopup`)のボタンは、そのルートに起点が無ければ「ポイントとして追加」(`defaultType:"start"`)の1つだけ。起点が既にある場合は「観光スポットとして追加」(`defaultType:"sightseeing"`、現在のルートに追加)と「新しいルートの起点として追加」(新しいルートを自動命名(`ルート${routes.length+1}`、`createAndSwitchToNewRoute`)で作成・切替してから起点追加モーダルを開く)の2つが出る。いずれも`openPointModal({mode:"add", latlng, defaultType, defaultName})`で既存のポイント追加モーダルを開くだけ。`defaultName`には検索結果の短い名前(`name`)を渡し、この場合は逆ジオコーディングによる名前の自動入力(`fillNameFromMap`)をスキップする。保存後は一時マーカーを消す(`clearSearchResultMarker`、新しいポイントのマーカーと重複しないように)
 
 ## 地図移動まわりの挙動(`js/app.js` + `js/map.js`)
 - ルート切り替え時、そのルートに起点があれば`focusOnRouteStart(route)`(`app.js`)が地図をその起点へ`map.setView([lat,lng], 15)`で移動する。呼び出し箇所はルート選択(`#route-select`のchange)・新規ルート作成・ルート削除後の3箇所(いずれも`currentRoute`が別のルートに切り替わるタイミング)。起点が無いルートでは何もしない。初期表示(アプリ起動時に最初のルートを選ぶ処理)には適用していない。`map.js: initMap()`が既に非同期でGPSの現在地へ一度地図を寄せる処理を持っており、そこに割り込ませるとGPS取得タイミング次第で表示がちらつくため

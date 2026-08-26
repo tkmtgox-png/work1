@@ -520,6 +520,7 @@ button {
 }
 
 .popup-add-point-btn {
+  display: block;
   margin-top: 6px;
   padding: 6px 10px;
   border: none;
