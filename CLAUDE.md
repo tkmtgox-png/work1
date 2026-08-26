@@ -10,8 +10,9 @@
 - 動作確認のためにローカルサーバー(`python -m http.server` 等)やその他のバックグラウンドプロセスを起動した場合、実装・確認作業が完了したら**必ず停止すること**(ポートを開いたまま放置しない)。停止後はポートが応答しないことまで確認する。テストのために一時的に緩めた設定(公開範囲・認証・デバッグ用の穴など、脆弱性になり得るもの全般)も同様に、作業完了後は必ず元に戻す。
 
 ## データモデル
-`routes` ストア: `{ id, name, transportMode: 'walk'|'car', desiredMinutes: number|null, createdAt, updatedAt, points: [...] }`
+`routes` ストア: `{ id, name, transportMode: 'walk'|'car', desiredMinutes: number|null, createdAt, updatedAt, points: [...], history: [...] }`
 `points`: `{ id, type: 'start'|'waypoint'|'sightseeing'|'meal', name, memo, lat, lng, order, arrivalTime, stayMinutes, included, popularity, genre, locked }`
+`history`(実行履歴、`js/history.js`): `{ id, timestamp (Date.now()のミリ秒), memo }`。IndexedDBのスキーマ・バージョンは変更しておらず、`points`と同じくルートオブジェクトの1フィールドとして持つ。既存(`history`未設定)のルートは参照側で`route.history || []`として後方互換を保つ
 起点(`type: 'start'`)は1ルートにつき1件のみ。経路描画時は `[起点, ...他ポイント(order順、includedがfalseの観光スポットは除外), 起点]` で周回ルートを構成する(`js/routing.js` の `buildOrderedPoints`)。
 
 ## ルート検索機能(`js/route-search.js` + `js/nearby-search.js` + `js/app.js`)
@@ -41,6 +42,13 @@
 - `optimizeVisitOrder(startPoint, points)`: 直線距離(`haversineKm`)ベースで、最近傍法により初期巡回順を作り、2-opt(隣接しない2辺を入れ替えて総距離が縮むなら採用、を改善が無くなるまで繰り返す)で改善して返す。移動手段による速度差は全区間に一律にかかるため順位に影響せず、`transportMode`は受け取らない。ポイント数が少ない(実用上10〜20件程度)前提の総当たりで十分な速度が出る
 - 用途は2箇所: ①`openRouteSearch()`内で固定ポイントの巡回順を決めるため、②サイドパネルの「順番を最適化」ボタン(`#optimize-order-btn`、`app.js: handleOptimizeOrder`)。後者は起点必須・`type==="sightseeing" && included !== false`のポイントが2件以上必要(未満ならalertで案内)で、経由地・食事の最大`order`の次の値から結果順に`order`を採番し直す。経由地・食事自体の順序・位置は変更しない(新規選択は必ずそれらの後、という既存の並び規則を踏襲)
 - ルート検索を使わず手動追加だけのルートでも独立して使える。実際の道路事情(信号・坂道等)は考慮しない直線距離ベースの概算であり、既存のルート検索の移動時間見積もりと同様「あくまで目安」
+
+## 実行履歴(`js/history.js` + `js/app.js`)
+「いつこのコースを実際に回ったか」を手動で記録する機能。GPSでの自動検知は判定が複雑・誤検知が出やすいため採用せず、手動記録のみ。
+- サイドパネルの「実行履歴」セクション(ルートセクションの直下)の「記録する」ボタン(`#record-visit-btn`)を押すと、現在時刻を初期値にしたモーダル(`#history-modal`)が開く。日時(`datetime-local`)とメモ(任意)を入力して保存すると、`newHistoryEntry`で生成したエントリが`currentRoute.history`に追加される
+- 履歴一覧(`#history-list`、`renderHistoryList`)は日時の新しい順に表示。項目をクリックすると同じモーダルが編集モードで開き(削除ボタンも表示)、日時・メモの変更や削除ができる
+- `history`はルートごとの配列のため、ルートを切り替えると表示される履歴もそのルートのものだけに自動的に切り替わる(`points`と同じ独立性)
+- 到着時刻入力(`#point-arrival`)にあるような「表示ボタン+時計アイコン」の独自UIは使わず、素の`datetime-local`のみとしている(利用頻度に対して過剰なため)
 
 ## 場所の検索機能(`js/geocode.js: searchPlaces` + `js/app.js`)
 地図左上の検索ボックス(`#place-search`)に地名・住所を入力すると、Nominatim(OpenStreetMap)の`/search`エンドポイントで順ジオコーディングを行い、候補を最大5件リスト表示する(`#place-search-results`)。`searchPlaces`は表示用のフル住所(`label`)とポイント名初期値用の短い名前(`name`、`display_name`の最初のカンマ区切り部分)の両方を返す。候補を選ぶと`map.setView`で地図がその地点へ移動し、一時的な目印マーカー(`searchResultMarker`)を1つ立てて検索ボックス(`#place-search-input`)を空にする。既存の逆ジオコーディング(`reverseGeocode`、座標→地名、ポイント追加時の名前自動入力に使用)とは対称的な機能。

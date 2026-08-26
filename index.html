@@ -63,6 +63,14 @@
       </p>
     </section>
 
+    <section id="history-section">
+      <div class="section-title">実行履歴</div>
+      <div class="btn-row">
+        <button type="button" id="record-visit-btn">記録する</button>
+      </div>
+      <ul id="history-list"></ul>
+    </section>
+
     <section id="points-section">
       <div class="section-title">ポイント一覧</div>
       <p class="hint">地図をクリックするとポイントを追加できます。</p>
@@ -136,6 +144,27 @@
           <button type="submit">保存</button>
           <button type="button" id="point-delete-btn" class="danger hidden">削除</button>
           <button type="button" id="point-cancel-btn">キャンセル</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="history-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="history-modal-title">実行記録を追加</h2>
+      <form id="history-form">
+        <label>
+          日時
+          <input type="datetime-local" id="history-datetime" required />
+        </label>
+        <label>
+          メモ
+          <textarea id="history-memo" rows="3" maxlength="200"></textarea>
+        </label>
+        <div class="btn-row">
+          <button type="submit">保存</button>
+          <button type="button" id="history-delete-btn" class="danger hidden">削除</button>
+          <button type="button" id="history-cancel-btn">キャンセル</button>
         </div>
       </form>
     </div>

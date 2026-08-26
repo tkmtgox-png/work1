@@ -59,5 +59,6 @@ export function createEmptyRoute(name) {
     createdAt: now,
     updatedAt: now,
     points: [],
+    history: [],
   };
 }

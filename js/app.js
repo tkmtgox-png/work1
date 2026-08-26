@@ -5,6 +5,7 @@ import { drawRoute, clearRoute } from "./routing.js";
 import { reverseGeocode, searchPlaces } from "./geocode.js";
 import { getFeasibleCandidates, estimateSearchRadiusKm, travelMinutes, haversineKm, optimizeVisitOrder } from "./route-search.js";
 import { searchNearby } from "./nearby-search.js";
+import { newHistoryEntry, renderHistoryList } from "./history.js";
 
 const els = {
   panel: document.getElementById("panel"),
@@ -30,6 +31,15 @@ const els = {
   routeSearchFinishBtn: document.getElementById("route-search-finish"),
   pointList: document.getElementById("point-list"),
   optimizeOrderBtn: document.getElementById("optimize-order-btn"),
+  historyList: document.getElementById("history-list"),
+  recordVisitBtn: document.getElementById("record-visit-btn"),
+  historyModal: document.getElementById("history-modal"),
+  historyModalTitle: document.getElementById("history-modal-title"),
+  historyForm: document.getElementById("history-form"),
+  historyDatetimeInput: document.getElementById("history-datetime"),
+  historyMemoInput: document.getElementById("history-memo"),
+  historyDeleteBtn: document.getElementById("history-delete-btn"),
+  historyCancelBtn: document.getElementById("history-cancel-btn"),
   trackToggle: document.getElementById("track-location-toggle"),
   locationStatus: document.getElementById("location-status"),
   modal: document.getElementById("point-modal"),
@@ -55,6 +65,7 @@ let currentRoute = null;
 let markers = new Map();
 let pendingLatLng = null;
 let editingPointId = null;
+let editingHistoryId = null;
 let locationTracker;
 let geocodeToken = 0;
 let stayTouched = false;
@@ -193,6 +204,11 @@ function bindUI() {
     await saveRoute(currentRoute);
   });
 
+  els.recordVisitBtn.addEventListener("click", () => openHistoryModal({ mode: "add" }));
+  els.historyForm.addEventListener("submit", handleHistoryFormSubmit);
+  els.historyCancelBtn.addEventListener("click", closeHistoryModal);
+  els.historyDeleteBtn.addEventListener("click", handleHistoryDelete);
+
   els.routeSearchBtn.addEventListener("click", openRouteSearch);
   els.routeSearchFinishBtn.addEventListener("click", closeRouteSearch);
   els.routeSearchCloseBtn.addEventListener("click", closeRouteSearch);
@@ -245,6 +261,13 @@ function renderAll() {
       if (!point) return;
       map.setView([point.lat, point.lng], 17);
       markers.get(point.id)?.bindPopup(escapeHtml(point.name || "")).openPopup();
+    },
+  });
+  renderHistoryList(els.historyList, currentRoute, {
+    onSelect: (entryId) => {
+      const entry = (currentRoute.history || []).find((h) => h.id === entryId);
+      if (!entry) return;
+      openHistoryModal({ mode: "edit", entry });
     },
   });
 }
@@ -409,6 +432,56 @@ function closePointModal() {
   els.form.reset();
   editingPointId = null;
   pendingLatLng = null;
+}
+
+function toDatetimeLocalValue(timestamp) {
+  const d = new Date(timestamp);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function openHistoryModal({ mode, entry }) {
+  editingHistoryId = mode === "edit" ? entry.id : null;
+
+  els.historyModalTitle.textContent = mode === "add" ? "実行記録を追加" : "実行記録を編集";
+  els.historyDatetimeInput.value = toDatetimeLocalValue(mode === "edit" ? entry.timestamp : Date.now());
+  els.historyMemoInput.value = mode === "edit" ? entry.memo : "";
+  els.historyDeleteBtn.classList.toggle("hidden", mode !== "edit");
+
+  els.historyModal.classList.remove("hidden");
+}
+
+function closeHistoryModal() {
+  els.historyModal.classList.add("hidden");
+  els.historyForm.reset();
+  editingHistoryId = null;
+}
+
+async function handleHistoryFormSubmit(e) {
+  e.preventDefault();
+  const timestamp = new Date(els.historyDatetimeInput.value).getTime();
+  const memo = els.historyMemoInput.value.trim();
+
+  currentRoute.history = currentRoute.history || [];
+  if (editingHistoryId) {
+    const entry = currentRoute.history.find((h) => h.id === editingHistoryId);
+    Object.assign(entry, { timestamp, memo });
+  } else {
+    currentRoute.history.push(newHistoryEntry({ timestamp, memo }));
+  }
+
+  await saveRoute(currentRoute);
+  closeHistoryModal();
+  renderAll();
+}
+
+async function handleHistoryDelete() {
+  if (!editingHistoryId) return;
+  if (!confirm("この記録を削除しますか？")) return;
+  currentRoute.history = (currentRoute.history || []).filter((h) => h.id !== editingHistoryId);
+  await saveRoute(currentRoute);
+  closeHistoryModal();
+  renderAll();
 }
 
 async function handlePointFormSubmit(e) {
