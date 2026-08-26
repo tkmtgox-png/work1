@@ -25,6 +25,7 @@
      - `amenity=place_of_worship`(神社/寺/宗教施設、`religion`タグで判定)・`amenity=marketplace`(市場)
      - `leisure=park`(公園)・`natural=waterfall`(滝)・`man_made=tower`(タワー・展望施設)
      - 検索半径は`route-search.js: estimateSearchRadiusKm`で残り時間をそのまま片道距離とみなして概算(上限8km。起点方向の候補は実際には「帰り道への合流」で済み現在地からは遠くても間に合うことがあるため、往復前提で半分にはせず広めに取る。実際に時間内に収まるかは`getFeasibleCandidates`/`renderCandidateList`の`totalIfChosen`判定に任せる)。取得件数は80件・タイムアウト20秒でクランプし(`RESULT_LIMIT`/`FETCH_TIMEOUT_MS`)、登録済みポイントと近すぎる(30m以内)ものは重複として除外
+     - Overpassの`out`に件数上限を付けると、集合内の要素を種別(node→way→relation)でまとめて打ち切る内部仕様があるため、`nearby-search.js`の`buildQuery`ではクエリ自体には件数上限を付けず(`out center tags;`)、`searchNearby`側で全件取得してから絞り込む。さらに、上野公園のような観光密集地では鳥居・案内板・出店等の個別node登録が数百件単位であり、単純に現在地からの直線距離だけで並べ替えると動物園・博物館・神社仏閣本体のような主要施設(OSM上ではその敷地全体を表す`way`/`relation`として登録されることが多い)が距離順位で埋もれて候補から漏れてしまう(実際に上野駅を起点にすると上野動物園がリストに出ないという不具合として確認・修正済み)。そのため`way`/`relation`(`isArea: true`)を`node`より優先し、それぞれ現在地からの実距離順に並べたうえで連結してから`RESULT_LIMIT`件に絞る
   - 2つを合わせて**現在位置からの移動時間が近い順**にソートして表示。登録済み候補は人気度(★1〜5)、周辺検索候補はジャンルを補足表示する
 - 候補を1つ選ぶと、登録済みなら`included: true`・`order`確定、周辺検索由来なら`newPoint()`で新規の観光スポット(`popularity: 3`の仮値、`genre`をセット)としてルートに追加してから同様に確定。内部の「現在位置」がそのポイントに移り、候補リストが再計算される(**滞在時間はこの時間予算の計算には使わない**、移動時間のみ)
 - 経由地・食事(`waypoint`/`meal`)はこの検索の対象外(時間予算にもカウントされない)。従来通りルートには含まれ続ける

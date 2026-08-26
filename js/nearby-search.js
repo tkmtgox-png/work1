@@ -1,3 +1,5 @@
+import { haversineKm } from "./route-search.js";
+
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 
 const TOURISM_TAGS = "attraction|museum|zoo|aquarium|gallery|theme_park|viewpoint|artwork|garden";
@@ -6,10 +8,14 @@ const HISTORIC_TAGS = "castle|monument|memorial|shrine|temple|ruins|fort";
 const RESULT_LIMIT = 80;
 const FETCH_TIMEOUT_MS = 20000;
 
+// Overpassの out に件数上限を付けると、集合内の要素を種別(node→way→relation)でまとめて
+// 打ち切ってしまう内部仕様があり、node扱いの候補(石碑・案内板等)が多いエリアでは
+// way/relation登録の著名スポット(動物園の建物など)が丸ごと出力されなくなる。
+// そのため件数上限はここでは付けず、取得後にJS側で現在地からの実距離でソートしてから絞り込む。
 function buildQuery(lat, lng, radiusKm) {
   const radiusMeters = Math.round(radiusKm * 1000);
   const around = `around:${radiusMeters},${lat},${lng}`;
-  return `[out:json][timeout:12];(
+  return `[out:json][timeout:18];(
     node["tourism"~"${TOURISM_TAGS}"](${around});
     way["tourism"~"${TOURISM_TAGS}"](${around});
     node["historic"~"${HISTORIC_TAGS}"](${around});
@@ -25,7 +31,7 @@ function buildQuery(lat, lng, radiusKm) {
     way["man_made"="tower"](${around});
     node["amenity"="marketplace"](${around});
     way["amenity"="marketplace"](${around});
-  );out center tags ${RESULT_LIMIT};`;
+  );out center tags;`;
 }
 
 export function genreFromTags(tags) {
@@ -76,9 +82,17 @@ export async function searchNearby(centerLatLng, radiusKm) {
       const lat = el.type === "node" ? el.lat : el.center && el.center.lat;
       const lng = el.type === "node" ? el.lon : el.center && el.center.lon;
       if (lat == null || lng == null) continue;
-      results.push({ name, lat, lng, genre: genreFromTags(el.tags) });
+      results.push({ name, lat, lng, genre: genreFromTags(el.tags), isArea: el.type !== "node" });
     }
-    return results;
+    // 上野公園のような観光密集地では、鳥居・案内板・出店等の個別node登録が数百件単位で
+    // 大量に存在し、距離だけで並べ替えると動物園・博物館・神社仏閣といった主要施設
+    // (OSM上ではその敷地全体を表すway/relationとして登録されることが多い)が
+    // 距離順位で埋もれてしまう。そのため、施設全体を表すway/relation(isArea)を
+    // 個別のnode地物より優先し、それぞれ現在地からの実距離順に並べてから連結・件数を絞る。
+    const byDistance = (a, b) => haversineKm(centerLatLng, a) - haversineKm(centerLatLng, b);
+    const areas = results.filter((r) => r.isArea).sort(byDistance);
+    const points = results.filter((r) => !r.isArea).sort(byDistance);
+    return [...areas, ...points].slice(0, RESULT_LIMIT);
   } catch {
     return [];
   } finally {
