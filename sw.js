@@ -1,4 +1,4 @@
-const CACHE_NAME = "course-map-shell-v16";
+const CACHE_NAME = "course-map-shell-v17";
 const SHELL_FILES = [
   "./",
   "./index.html",

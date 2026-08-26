@@ -242,7 +242,9 @@ function renderAll() {
   renderPointList(els.pointList, currentRoute, {
     onSelect: (pointId) => {
       const point = currentRoute.points.find((p) => p.id === pointId);
-      if (point) openPointModal({ mode: "edit", point });
+      if (!point) return;
+      map.setView([point.lat, point.lng], 17);
+      markers.get(point.id)?.bindPopup(escapeHtml(point.name || "")).openPopup();
     },
   });
 }
